@@ -1,23 +1,38 @@
 package com.example.novaplustrader.data.repository
 
+import com.example.novaplustrader.data.remote.FinancialBackendService
+import com.example.novaplustrader.data.remote.FinancialBackendServiceImpl
+import com.example.novaplustrader.domain.model.ledger.DepositRequest
+import com.example.novaplustrader.domain.model.ledger.FeeModel
+import com.example.novaplustrader.domain.model.ledger.FinancialTransaction
+import com.example.novaplustrader.domain.model.ledger.FinancialTransactionStatus
+import com.example.novaplustrader.domain.model.ledger.FinancialTransactionType
+import com.example.novaplustrader.domain.model.ledger.RefundRequest
+import com.example.novaplustrader.domain.model.ledger.ReversalRequest
+import com.example.novaplustrader.domain.model.ledger.TransferRequest
+import com.example.novaplustrader.domain.model.ledger.WalletBalanceModel
+import com.example.novaplustrader.domain.model.ledger.WithdrawalRequest
 import com.example.novaplustrader.ui.model.Currency
 import com.example.novaplustrader.ui.model.TransactionStatus
 import com.example.novaplustrader.ui.model.TransactionType
 import com.example.novaplustrader.ui.model.TransactionUiModel
 import com.example.novaplustrader.ui.screens.wallet.models.DepositMethod
 import com.example.novaplustrader.ui.screens.wallet.models.WithdrawMethod
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.update
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
+import kotlinx.coroutines.launch
+import java.util.UUID
 
-class WalletRepositoryImpl : WalletRepository {
+class WalletRepositoryImpl(
+    private val backendService: FinancialBackendService = FinancialBackendServiceImpl()
+) : WalletRepository {
+
+    private val scope = CoroutineScope(Dispatchers.Default)
 
     private val _balances = MutableStateFlow(
         mapOf(
@@ -26,60 +41,73 @@ class WalletRepositoryImpl : WalletRepository {
         )
     )
 
-    private val _transactions = MutableStateFlow<List<TransactionUiModel>>(
-        listOf(
-            TransactionUiModel(
-                id = "tx_101",
-                title = "Bolt Food",
-                subtitle = "Payment • Visa Card",
-                type = TransactionType.PAYMENT,
-                amount = 26.81,
-                currency = Currency.USD,
-                isPositive = false,
-                timestamp = "Today, 1:45 PM",
-                status = TransactionStatus.COMPLETED
-            ),
-            TransactionUiModel(
-                id = "tx_102",
-                title = "Maria Wanjiku",
-                subtitle = "Peer Transfer",
-                type = TransactionType.TRANSFER,
-                amount = 100.00,
-                currency = Currency.USD,
-                isPositive = false,
-                timestamp = "Today, 10:12 AM",
-                status = TransactionStatus.COMPLETED
-            ),
-            TransactionUiModel(
-                id = "tx_103",
-                title = "Salary Deposit",
-                subtitle = "Bank Wire • Chase Bank",
-                type = TransactionType.DEPOSIT,
-                amount = 2400.00,
-                currency = Currency.USD,
-                isPositive = true,
-                timestamp = "Yesterday, 4:30 PM",
-                status = TransactionStatus.COMPLETED
-            ),
-            TransactionUiModel(
-                id = "tx_104",
-                title = "M-Pesa Cashout",
-                subtitle = "Mobile Withdrawal",
-                type = TransactionType.WITHDRAWAL,
-                amount = 15000.00,
-                currency = Currency.KES,
-                isPositive = false,
-                timestamp = "14 Oct, 2:10 PM",
-                status = TransactionStatus.COMPLETED
-            )
-        )
-    )
+    private val _uiTransactions = MutableStateFlow<List<TransactionUiModel>>(emptyList())
+
+    init {
+        // Synchronize legacy UI flow streams with backend authoritative state
+        scope.launch {
+            backendService.observeWalletBalance("w_usd").collect { usdModel ->
+                _balances.value = _balances.value + (Currency.USD to usdModel.availableBalance)
+            }
+        }
+        scope.launch {
+            backendService.observeWalletBalance("w_kes").collect { kesModel ->
+                _balances.value = _balances.value + (Currency.KES to kesModel.availableBalance)
+            }
+        }
+        scope.launch {
+            backendService.observeTransactionHistory("").collect { list ->
+                _uiTransactions.value = list.map { mapToUiModel(it) }
+            }
+        }
+    }
 
     override fun observeBalances(): StateFlow<Map<Currency, Double>> = _balances.asStateFlow()
-    override fun observeTransactions(): StateFlow<List<TransactionUiModel>> = _transactions.asStateFlow()
+
+    override fun observeTransactions(): StateFlow<List<TransactionUiModel>> = _uiTransactions.asStateFlow()
 
     override fun observeTransactionById(id: String): Flow<TransactionUiModel?> {
-        return _transactions.map { list -> list.find { it.id == id } }
+        return backendService.observeTransaction(id).map { it?.let { mapToUiModel(it) } }
+    }
+
+    override fun observeWalletBalanceModel(walletId: String): Flow<WalletBalanceModel> {
+        return backendService.observeWalletBalance(walletId)
+    }
+
+    override fun observeFinancialTransactions(): Flow<List<FinancialTransaction>> {
+        return backendService.observeTransactionHistory("")
+    }
+
+    override fun observeFinancialTransactionById(id: String): Flow<FinancialTransaction?> {
+        return backendService.observeTransaction(id)
+    }
+
+    override suspend fun createDepositRequest(request: DepositRequest): Result<FinancialTransaction> {
+        return backendService.createDepositRequest(request)
+    }
+
+    override suspend fun createWithdrawalRequest(request: WithdrawalRequest): Result<FinancialTransaction> {
+        return backendService.createWithdrawalRequest(request)
+    }
+
+    override suspend fun createTransferRequest(request: TransferRequest): Result<FinancialTransaction> {
+        return backendService.createTransferRequest(request)
+    }
+
+    override suspend fun requestRefund(request: RefundRequest): Result<FinancialTransaction> {
+        return backendService.requestRefund(request)
+    }
+
+    override suspend fun requestReversal(request: ReversalRequest): Result<FinancialTransaction> {
+        return backendService.requestReversal(request)
+    }
+
+    override suspend fun getFeeEstimate(
+        type: FinancialTransactionType,
+        amountMinorUnits: Long,
+        currency: Currency
+    ): Result<FeeModel> {
+        return backendService.calculateFee(type, amountMinorUnits, currency)
     }
 
     override suspend fun initiateDeposit(
@@ -87,28 +115,18 @@ class WalletRepositoryImpl : WalletRepository {
         amount: Double,
         currency: Currency
     ): Result<TransactionUiModel> {
-        delay(900) // Simulate network authorization / STK Push prompt
-
-        val newTx = TransactionUiModel(
-            id = "tx_dep_${System.currentTimeMillis()}",
-            title = "${method.title} Deposit",
-            subtitle = method.description,
-            type = TransactionType.DEPOSIT,
-            amount = amount,
-            currency = currency,
-            isPositive = true,
-            timestamp = "Just now (${getFormattedTime()})",
-            status = TransactionStatus.COMPLETED
+        val walletId = if (currency == Currency.USD) "w_usd" else "w_kes"
+        val req = DepositRequest(
+            idempotencyKey = "idemp_dep_${UUID.randomUUID().toString().take(10)}",
+            userId = "usr_9901",
+            walletId = walletId,
+            method = method,
+            amountMinorUnits = Math.round(amount * 100.0),
+            currency = currency
         )
 
-        // Update ledger state safely
-        _balances.update { currentMap ->
-            val existing = currentMap[currency] ?: 0.0
-            currentMap + (currency to (existing + amount))
-        }
-
-        _transactions.update { listOf(newTx) + it }
-        return Result.success(newTx)
+        val result = backendService.createDepositRequest(req)
+        return result.map { mapToUiModel(it) }
     }
 
     override suspend fun initiateWithdrawal(
@@ -118,33 +136,20 @@ class WalletRepositoryImpl : WalletRepository {
         currency: Currency,
         securityPin: String
     ): Result<TransactionUiModel> {
-        val currentBalance = _balances.value[currency] ?: 0.0
-        if (amount > currentBalance) {
-            return Result.failure(IllegalArgumentException("Insufficient wallet balance for withdrawal"))
-        }
-
-        delay(900) // Simulate secure ledger transaction processing
-
-        val newTx = TransactionUiModel(
-            id = "tx_wd_${System.currentTimeMillis()}",
-            title = "${method.title} Withdrawal",
-            subtitle = "To: $destination",
-            type = TransactionType.WITHDRAWAL,
-            amount = amount,
+        val walletId = if (currency == Currency.USD) "w_usd" else "w_kes"
+        val req = WithdrawalRequest(
+            idempotencyKey = "idemp_wd_${UUID.randomUUID().toString().take(10)}",
+            userId = "usr_9901",
+            walletId = walletId,
+            method = method,
+            destination = destination,
+            amountMinorUnits = Math.round(amount * 100.0),
             currency = currency,
-            isPositive = false,
-            timestamp = "Just now (${getFormattedTime()})",
-            status = TransactionStatus.COMPLETED
+            securityPin = securityPin
         )
 
-        // Deduct from wallet ledger
-        _balances.update { currentMap ->
-            val existing = currentMap[currency] ?: 0.0
-            currentMap + (currency to (existing - amount).coerceAtLeast(0.0))
-        }
-
-        _transactions.update { listOf(newTx) + it }
-        return Result.success(newTx)
+        val result = backendService.createWithdrawalRequest(req)
+        return result.map { mapToUiModel(it) }
     }
 
     override suspend fun sendMoney(
@@ -153,32 +158,19 @@ class WalletRepositoryImpl : WalletRepository {
         currency: Currency,
         note: String
     ): Result<TransactionUiModel> {
-        val currentBalance = _balances.value[currency] ?: 0.0
-        if (amount > currentBalance) {
-            return Result.failure(IllegalArgumentException("Insufficient funds for peer transfer"))
-        }
-
-        delay(800)
-
-        val newTx = TransactionUiModel(
-            id = "tx_send_${System.currentTimeMillis()}",
-            title = "Transfer to $recipientId",
-            subtitle = if (note.isBlank()) "Peer Transfer" else note,
-            type = TransactionType.TRANSFER,
-            amount = amount,
+        val walletId = if (currency == Currency.USD) "w_usd" else "w_kes"
+        val req = TransferRequest(
+            idempotencyKey = "idemp_trf_${UUID.randomUUID().toString().take(10)}",
+            senderUserId = "usr_9901",
+            senderWalletId = walletId,
+            recipientId = recipientId,
+            amountMinorUnits = Math.round(amount * 100.0),
             currency = currency,
-            isPositive = false,
-            timestamp = "Just now (${getFormattedTime()})",
-            status = TransactionStatus.COMPLETED
+            note = note
         )
 
-        _balances.update { currentMap ->
-            val existing = currentMap[currency] ?: 0.0
-            currentMap + (currency to (existing - amount).coerceAtLeast(0.0))
-        }
-
-        _transactions.update { listOf(newTx) + it }
-        return Result.success(newTx)
+        val result = backendService.createTransferRequest(req)
+        return result.map { mapToUiModel(it) }
     }
 
     override fun generateReceiveRequest(
@@ -189,8 +181,33 @@ class WalletRepositoryImpl : WalletRepository {
         return "novapay://transfer?recipient=#NV-92841&currency=${currency.code}$amtPart"
     }
 
-    private fun getFormattedTime(): String {
-        val sdf = SimpleDateFormat("HH:mm", Locale.US)
-        return sdf.format(Date())
+    private fun mapToUiModel(tx: FinancialTransaction): TransactionUiModel {
+        val uiType = when (tx.type) {
+            FinancialTransactionType.DEPOSIT -> TransactionType.DEPOSIT
+            FinancialTransactionType.WITHDRAWAL -> TransactionType.WITHDRAWAL
+            FinancialTransactionType.TRANSFER -> TransactionType.TRANSFER
+            FinancialTransactionType.TRADE -> TransactionType.TRADE
+            else -> TransactionType.PAYMENT
+        }
+
+        val uiStatus = when (tx.status) {
+            FinancialTransactionStatus.COMPLETED -> TransactionStatus.COMPLETED
+            FinancialTransactionStatus.FAILED, FinancialTransactionStatus.CANCELLED, FinancialTransactionStatus.REVERSED -> TransactionStatus.FAILED
+            else -> TransactionStatus.PENDING
+        }
+
+        val isPos = tx.type == FinancialTransactionType.DEPOSIT || tx.type == FinancialTransactionType.REFUND
+
+        return TransactionUiModel(
+            id = tx.transactionId,
+            title = tx.description.ifBlank { "${tx.type.name} Transaction" },
+            subtitle = "Ref: ${tx.reference}",
+            type = uiType,
+            amount = tx.amountDouble,
+            currency = tx.currency,
+            isPositive = isPos,
+            timestamp = tx.createdAt,
+            status = uiStatus
+        )
     }
 }

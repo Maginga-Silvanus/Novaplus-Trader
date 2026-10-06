@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AdminPanelSettings
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.PrivacyTip
@@ -52,7 +53,8 @@ fun ProfileScreen(
     onNavigateToSettings: () -> Unit,
     onNavigateToPrivacy: () -> Unit,
     onLoggedOut: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onNavigateToAdmin: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val p = uiState.profile
@@ -155,6 +157,13 @@ fun ProfileScreen(
                     Spacer(modifier = Modifier.height(6.dp))
 
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        ProfileMenuItem(
+                            title = "Admin & Operations Portal",
+                            subtitle = "Privileged control center for authorized operators",
+                            icon = Icons.Default.AdminPanelSettings,
+                            onClick = onNavigateToAdmin
+                        )
+
                         ProfileMenuItem(
                             title = "Edit Profile",
                             subtitle = "Full name, display name, and contact details",

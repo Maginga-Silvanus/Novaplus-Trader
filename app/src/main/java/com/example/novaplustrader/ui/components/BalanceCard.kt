@@ -21,7 +21,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -44,7 +43,9 @@ fun BalanceCard(
     todayChangeAmount: Double,
     todayChangePercentage: Double,
     onCurrencySelected: (Currency) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    pendingAmount: Double = 0.0,
+    lockedAmount: Double = 0.0
 ) {
     Box(
         modifier = modifier
@@ -65,7 +66,7 @@ fun BalanceCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "TOTAL BALANCE",
+                    text = "AVAILABLE BALANCE",
                     color = TextMuted,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
@@ -120,6 +121,31 @@ fun BalanceCard(
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Medium
                 )
+            }
+
+            if (pendingAmount > 0.0 || lockedAmount > 0.0) {
+                Spacer(modifier = Modifier.height(10.dp))
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (pendingAmount > 0.0) {
+                        Text(
+                            text = "Pending: ${Formatters.formatCurrency(pendingAmount, currency)}",
+                            color = ElectricLime,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    if (lockedAmount > 0.0) {
+                        Text(
+                            text = "Locked: ${Formatters.formatCurrency(lockedAmount, currency)}",
+                            color = TextMuted,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
             }
         }
     }

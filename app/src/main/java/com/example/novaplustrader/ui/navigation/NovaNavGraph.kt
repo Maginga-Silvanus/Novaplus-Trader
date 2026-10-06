@@ -6,6 +6,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
+import com.example.novaplustrader.ui.screens.admin.AdminNavGraph
 import com.example.novaplustrader.ui.screens.betting.BetDetailsScreen
 import com.example.novaplustrader.ui.screens.betting.BetSlipScreen
 import com.example.novaplustrader.ui.screens.betting.BettingScreen
@@ -115,11 +117,20 @@ fun NovaNavGraph(
                 onNavigateToSecurity = { navController.navigate(Screen.Security.route) },
                 onNavigateToSettings = { navController.navigate(Screen.Settings.route) },
                 onNavigateToPrivacy = { navController.navigate(Screen.PrivacySettings.route) },
+                onNavigateToAdmin = { navController.navigate(Screen.AdminPortal.route) },
                 onLoggedOut = {
                     navController.navigate(Screen.Home.route) {
                         popUpTo(0) { inclusive = true }
                     }
                 }
+            )
+        }
+
+        composable(Screen.AdminPortal.route) {
+            val adminNavController = rememberNavController()
+            AdminNavGraph(
+                navController = adminNavController,
+                onExitAdminPortal = { navController.popBackStack() }
             )
         }
 

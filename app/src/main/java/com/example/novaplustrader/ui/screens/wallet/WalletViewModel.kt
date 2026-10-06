@@ -4,6 +4,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.novaplustrader.data.repository.WalletRepository
 import com.example.novaplustrader.data.repository.WalletRepositoryImpl
+import com.example.novaplustrader.domain.model.ledger.DepositRequest
+import com.example.novaplustrader.domain.model.ledger.TransferRequest
+import com.example.novaplustrader.domain.model.ledger.WithdrawalRequest
 import com.example.novaplustrader.ui.model.Currency
 import com.example.novaplustrader.ui.model.TransactionUiModel
 import com.example.novaplustrader.ui.model.WalletUiModel
@@ -15,6 +18,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.util.Locale
+import java.util.UUID
 
 class WalletViewModel(
     private val repository: WalletRepository = WalletRepositoryImpl()
@@ -30,36 +34,45 @@ class WalletViewModel(
     private fun observeWalletRepository() {
         viewModelScope.launch {
             launch {
-                repository.observeBalances().collect { balances ->
-                    val usdB = balances[Currency.USD] ?: 0.0
-                    val kesB = balances[Currency.KES] ?: 0.0
-
-                    val sampleWallets = listOf(
-                        WalletUiModel(
-                            id = "w_usd",
-                            walletId = "#NV-92841",
-                            userName = _uiState.value.userName,
-                            currency = Currency.USD,
-                            balanceAmount = usdB,
-                            cardNumberPlaceholder = "•••• •••• •••• 8842",
-                            isPrimary = true
-                        ),
-                        WalletUiModel(
-                            id = "w_kes",
-                            walletId = "#NV-92842",
-                            userName = _uiState.value.userName,
-                            currency = Currency.KES,
-                            balanceAmount = kesB,
-                            cardNumberPlaceholder = "•••• •••• •••• 4109",
-                            isPrimary = false
+                repository.observeWalletBalanceModel("w_usd").collect { usdModel ->
+                    _uiState.update { current ->
+                        val sampleWallets = listOf(
+                            WalletUiModel(
+                                id = "w_usd",
+                                walletId = "#NV-92841",
+                                userName = current.userName,
+                                currency = Currency.USD,
+                                balanceAmount = usdModel.availableBalance,
+                                cardNumberPlaceholder = "•••• •••• •••• 8842",
+                                isPrimary = true
+                            ),
+                            WalletUiModel(
+                                id = "w_kes",
+                                walletId = "#NV-92842",
+                                userName = current.userName,
+                                currency = Currency.KES,
+                                balanceAmount = current.kesBalance,
+                                cardNumberPlaceholder = "•••• •••• •••• 4109",
+                                isPrimary = false
+                            )
                         )
-                    )
-
-                    _uiState.update {
-                        it.copy(
-                            usdBalance = usdB,
-                            kesBalance = kesB,
+                        current.copy(
+                            usdBalance = usdModel.availableBalance,
+                            usdPendingBalance = usdModel.pendingBalance,
+                            usdLockedBalance = usdModel.lockedBalance,
                             wallets = sampleWallets
+                        )
+                    }
+                }
+            }
+
+            launch {
+                repository.observeWalletBalanceModel("w_kes").collect { kesModel ->
+                    _uiState.update { current ->
+                        current.copy(
+                            kesBalance = kesModel.availableBalance,
+                            kesPendingBalance = kesModel.pendingBalance,
+                            kesLockedBalance = kesModel.lockedBalance
                         )
                     }
                 }
@@ -68,6 +81,12 @@ class WalletViewModel(
             launch {
                 repository.observeTransactions().collect { txs ->
                     _uiState.update { it.copy(transactions = txs) }
+                }
+            }
+
+            launch {
+                repository.observeFinancialTransactions().collect { finTxs ->
+                    _uiState.update { it.copy(financialTransactions = finTxs) }
                 }
             }
         }
@@ -87,12 +106,21 @@ class WalletViewModel(
 
     // --- DEPOSIT FLOW ---
     fun selectDepositMethod(method: DepositMethod) {
-        val fee = when (method) {
-            DepositMethod.BANK -> 1.2
-            DepositMethod.CARD -> 1.5
-            else -> 0.0
+        viewModelScope.launch {
+            val amountMinor = Math.round((_uiState.value.depositAmountString.toDoubleOrNull() ?: 100.0) * 100.0)
+            val feeRes = repository.getFeeEstimate(
+                com.example.novaplustrader.domain.model.ledger.FinancialTransactionType.DEPOSIT,
+                amountMinor,
+                _uiState.value.selectedCurrency
+            ).getOrNull()
+
+            val fee = feeRes?.feeAmountDouble ?: when (method) {
+                DepositMethod.BANK -> 1.2
+                DepositMethod.CARD -> 1.5
+                else -> 0.0
+            }
+            _uiState.update { it.copy(selectedDepositMethod = method, depositFee = fee) }
         }
-        _uiState.update { it.copy(selectedDepositMethod = method, depositFee = fee) }
     }
 
     fun updateDepositAmount(amountStr: String) {
@@ -117,30 +145,56 @@ class WalletViewModel(
         _uiState.update { it.copy(isDepositConfirmOpen = false, isLoading = true) }
         viewModelScope.launch {
             val amount = _uiState.value.depositAmountString.toDoubleOrNull() ?: 0.0
-            val result = repository.initiateDeposit(
+            val walletId = if (_uiState.value.selectedCurrency == Currency.USD) "w_usd" else "w_kes"
+
+            val req = DepositRequest(
+                idempotencyKey = "idemp_dep_${UUID.randomUUID().toString().take(12)}",
+                userId = "usr_9901",
+                walletId = walletId,
                 method = _uiState.value.selectedDepositMethod,
-                amount = amount,
+                amountMinorUnits = Math.round(amount * 100.0),
                 currency = _uiState.value.selectedCurrency
             )
 
+            val result = repository.createDepositRequest(req)
             _uiState.update { it.copy(isLoading = false) }
 
-            result.onSuccess { tx ->
-                _uiState.update { it.copy(lastCompletedTransaction = tx) }
+            result.onSuccess { finTx ->
+                val uiTx = TransactionUiModel(
+                    id = finTx.transactionId,
+                    title = finTx.description,
+                    subtitle = "Ref: ${finTx.reference}",
+                    type = com.example.novaplustrader.ui.model.TransactionType.DEPOSIT,
+                    amount = finTx.amountDouble,
+                    currency = finTx.currency,
+                    isPositive = true,
+                    timestamp = finTx.createdAt,
+                    status = if (finTx.status == com.example.novaplustrader.domain.model.ledger.FinancialTransactionStatus.COMPLETED) com.example.novaplustrader.ui.model.TransactionStatus.COMPLETED else com.example.novaplustrader.ui.model.TransactionStatus.PENDING
+                )
+                _uiState.update { it.copy(lastCompletedTransaction = uiTx) }
             }.onFailure { err ->
-                _uiState.update { it.copy(errorMessage = err.message ?: "Deposit failed") }
+                _uiState.update { it.copy(errorMessage = err.message ?: "Deposit request failed") }
             }
         }
     }
 
     // --- WITHDRAW FLOW ---
     fun selectWithdrawMethod(method: WithdrawMethod) {
-        val fee = when (method) {
-            WithdrawMethod.BANK -> 2.50
-            WithdrawMethod.MPESA -> 0.30
-            WithdrawMethod.CRYPTO_WALLET -> 1.00
+        viewModelScope.launch {
+            val amountMinor = Math.round((_uiState.value.withdrawAmountString.toDoubleOrNull() ?: 50.0) * 100.0)
+            val feeRes = repository.getFeeEstimate(
+                com.example.novaplustrader.domain.model.ledger.FinancialTransactionType.WITHDRAWAL,
+                amountMinor,
+                _uiState.value.selectedCurrency
+            ).getOrNull()
+
+            val fee = feeRes?.feeAmountDouble ?: when (method) {
+                WithdrawMethod.BANK -> 2.50
+                WithdrawMethod.MPESA -> 0.30
+                WithdrawMethod.CRYPTO_WALLET -> 1.00
+            }
+            _uiState.update { it.copy(selectedWithdrawMethod = method, withdrawFee = fee) }
         }
-        _uiState.update { it.copy(selectedWithdrawMethod = method, withdrawFee = fee) }
     }
 
     fun updateWithdrawDestination(dest: String) {
@@ -224,20 +278,37 @@ class WalletViewModel(
         _uiState.update { it.copy(isPinVerificationOpen = false, isLoading = true) }
         viewModelScope.launch {
             val amount = _uiState.value.withdrawAmountString.toDoubleOrNull() ?: 0.0
-            val result = repository.initiateWithdrawal(
+            val walletId = if (_uiState.value.selectedCurrency == Currency.USD) "w_usd" else "w_kes"
+
+            val req = WithdrawalRequest(
+                idempotencyKey = "idemp_wd_${UUID.randomUUID().toString().take(12)}",
+                userId = "usr_9901",
+                walletId = walletId,
                 method = _uiState.value.selectedWithdrawMethod,
                 destination = _uiState.value.withdrawDestination,
-                amount = amount,
+                amountMinorUnits = Math.round(amount * 100.0),
                 currency = _uiState.value.selectedCurrency,
                 securityPin = pin
             )
 
+            val result = repository.createWithdrawalRequest(req)
             _uiState.update { it.copy(isLoading = false, securityPin = "") }
 
-            result.onSuccess { tx ->
-                _uiState.update { it.copy(lastCompletedTransaction = tx) }
+            result.onSuccess { finTx ->
+                val uiTx = TransactionUiModel(
+                    id = finTx.transactionId,
+                    title = finTx.description,
+                    subtitle = "Ref: ${finTx.reference}",
+                    type = com.example.novaplustrader.ui.model.TransactionType.WITHDRAWAL,
+                    amount = finTx.amountDouble,
+                    currency = finTx.currency,
+                    isPositive = false,
+                    timestamp = finTx.createdAt,
+                    status = if (finTx.status == com.example.novaplustrader.domain.model.ledger.FinancialTransactionStatus.COMPLETED) com.example.novaplustrader.ui.model.TransactionStatus.COMPLETED else com.example.novaplustrader.ui.model.TransactionStatus.PENDING
+                )
+                _uiState.update { it.copy(lastCompletedTransaction = uiTx) }
             }.onFailure { err ->
-                _uiState.update { it.copy(errorMessage = err.message ?: "Withdrawal failed") }
+                _uiState.update { it.copy(errorMessage = err.message ?: "Withdrawal request failed") }
             }
         }
     }
@@ -284,19 +355,36 @@ class WalletViewModel(
         _uiState.update { it.copy(isSendConfirmOpen = false, isLoading = true) }
         viewModelScope.launch {
             val amount = _uiState.value.sendAmountString.toDoubleOrNull() ?: 0.0
-            val result = repository.sendMoney(
+            val walletId = if (_uiState.value.selectedCurrency == Currency.USD) "w_usd" else "w_kes"
+
+            val req = TransferRequest(
+                idempotencyKey = "idemp_trf_${UUID.randomUUID().toString().take(12)}",
+                senderUserId = "usr_9901",
+                senderWalletId = walletId,
                 recipientId = _uiState.value.recipientId,
-                amount = amount,
+                amountMinorUnits = Math.round(amount * 100.0),
                 currency = _uiState.value.selectedCurrency,
                 note = _uiState.value.sendNote
             )
 
+            val result = repository.createTransferRequest(req)
             _uiState.update { it.copy(isLoading = false) }
 
-            result.onSuccess { tx ->
-                _uiState.update { it.copy(lastCompletedTransaction = tx) }
+            result.onSuccess { finTx ->
+                val uiTx = TransactionUiModel(
+                    id = finTx.transactionId,
+                    title = finTx.description,
+                    subtitle = "Ref: ${finTx.reference}",
+                    type = com.example.novaplustrader.ui.model.TransactionType.TRANSFER,
+                    amount = finTx.amountDouble,
+                    currency = finTx.currency,
+                    isPositive = false,
+                    timestamp = finTx.createdAt,
+                    status = if (finTx.status == com.example.novaplustrader.domain.model.ledger.FinancialTransactionStatus.COMPLETED) com.example.novaplustrader.ui.model.TransactionStatus.COMPLETED else com.example.novaplustrader.ui.model.TransactionStatus.PENDING
+                )
+                _uiState.update { it.copy(lastCompletedTransaction = uiTx) }
             }.onFailure { err ->
-                _uiState.update { it.copy(errorMessage = err.message ?: "Transfer failed") }
+                _uiState.update { it.copy(errorMessage = err.message ?: "Transfer request failed") }
             }
         }
     }

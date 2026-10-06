@@ -88,7 +88,7 @@ fun WalletScreen(
         ) {
             // Balance Card Section
             item {
-                val currentBal = if (uiState.selectedCurrency == Currency.USD) uiState.usdBalance else uiState.kesBalance
+                val currentBal = uiState.currentAvailableBalance
                 val currentChange = if (uiState.selectedCurrency == Currency.USD) uiState.todayChangeAmountUsd else uiState.todayChangeAmountKes
 
                 Box(modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp)) {
@@ -97,6 +97,8 @@ fun WalletScreen(
                         currency = uiState.selectedCurrency,
                         todayChangeAmount = currentChange,
                         todayChangePercentage = uiState.todayChangePercentage,
+                        pendingAmount = uiState.currentPendingBalance,
+                        lockedAmount = uiState.currentLockedBalance,
                         onCurrencySelected = { currency ->
                             viewModel.selectCurrency(currency)
                         }
@@ -123,81 +125,72 @@ fun WalletScreen(
                         state = pagerState,
                         contentPadding = PaddingValues(horizontal = 20.dp),
                         pageSpacing = 12.dp,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 8.dp)
+                        modifier = Modifier.fillMaxWidth()
                     ) { page ->
                         val wallet = uiState.wallets[page]
-                        val pageOffset = ((pagerState.currentPage - page) + pagerState.currentPageOffsetFraction).absoluteValue
+                        val pageOffset = (pagerState.currentPage - page) + pagerState.currentPageOffsetFraction
 
                         WalletCard(
                             wallet = wallet,
                             modifier = Modifier.graphicsLayer {
-                                val scale = lerp(0.95f, 1f, 1f - pageOffset.coerceIn(0f, 1f))
-                                scaleX = scale
-                                scaleY = scale
-                                alpha = lerp(0.7f, 1f, 1f - pageOffset.coerceIn(0f, 1f))
+                                alpha = lerp(
+                                    start = 0.6f,
+                                    stop = 1f,
+                                    fraction = 1f - pageOffset.absoluteValue.coerceIn(0f, 1f)
+                                )
+                                scaleY = lerp(
+                                    start = 0.92f,
+                                    stop = 1f,
+                                    fraction = 1f - pageOffset.absoluteValue.coerceIn(0f, 1f)
+                                )
                             }
                         )
                     }
                 }
             }
 
-            // Quick Actions Section
+            // Quick Actions Bar
             item {
-                Spacer(modifier = Modifier.height(16.dp))
-                Text(
-                    text = "WALLET ACTIONS",
-                    color = TextMuted,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.sp,
-                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 4.dp)
-                )
-
+                Spacer(modifier = Modifier.height(20.dp))
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                        .padding(horizontal = 20.dp),
+                    horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
                     QuickActionButton(
-                        label = "Deposit",
+                        title = "Deposit",
                         icon = Icons.Default.ArrowDownward,
-                        isPrimary = true,
                         onClick = onNavigateToDeposit
                     )
                     QuickActionButton(
-                        label = "Withdraw",
+                        title = "Withdraw",
                         icon = Icons.Default.ArrowUpward,
                         onClick = onNavigateToWithdraw
                     )
                     QuickActionButton(
-                        label = "Send",
+                        title = "Send",
                         icon = Icons.AutoMirrored.Filled.Send,
                         onClick = onNavigateToSend
                     )
                     QuickActionButton(
-                        label = "Receive",
-                        icon = Icons.Default.ArrowUpward,
+                        title = "Receive",
+                        icon = Icons.Default.ArrowDownward,
                         onClick = onNavigateToReceive
                     )
                 }
             }
 
-            // Recent Transactions List
+            // Recent Transactions Section
             item {
-                Spacer(modifier = Modifier.height(16.dp))
-                Box(modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)) {
-                    TransactionList(
-                        transactions = uiState.transactions,
-                        onTransactionClick = { tx ->
-                            viewModel.selectTransactionDetails(tx)
-                        },
-                        onViewAllClick = onNavigateToHistory
-                    )
-                }
+                Spacer(modifier = Modifier.height(24.dp))
+                TransactionList(
+                    transactions = uiState.transactions,
+                    onSeeAllClick = onNavigateToHistory,
+                    onSelectTransaction = { tx ->
+                        viewModel.selectTransactionDetails(tx)
+                    }
+                )
             }
         }
     }

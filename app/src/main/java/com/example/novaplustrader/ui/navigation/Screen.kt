@@ -39,4 +39,21 @@ sealed class Screen(val route: String) {
     object SupportTicketDetails : Screen("support_ticket_details")
     object LegalInformation : Screen("legal_information")
     object RiskDisclosure : Screen("risk_disclosure")
+
+    // Admin & Operations Control Center Destinations
+    object AdminPortal : Screen("admin_portal")
+    object AdminDashboard : Screen("admin_dashboard")
+    object AdminUsers : Screen("admin_users")
+    object AdminUserDetails : Screen("admin_user_details/{userId}") {
+        fun createRoute(userId: String) = "admin_user_details/$userId"
+    }
+    object AdminWallets : Screen("admin_wallets")
+    object AdminTransactions : Screen("admin_transactions")
+    object AdminTrading : Screen("admin_trading")
+    object AdminBots : Screen("admin_bots")
+    object AdminNotifications : Screen("admin_notifications")
+    object AdminSupport : Screen("admin_support")
+    object AdminAuditLogs : Screen("admin_audit_logs")
+    object AdminSystemStatus : Screen("admin_system_status")
+    object AdminAccessDenied : Screen("admin_access_denied")
 }

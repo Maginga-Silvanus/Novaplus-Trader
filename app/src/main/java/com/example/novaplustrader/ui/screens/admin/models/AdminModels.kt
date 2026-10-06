@@ -32,7 +32,12 @@ data class AdminUserModel(
     val accountStatus: AdminUserStatus = AdminUserStatus.ACTIVE,
     val verificationStatus: String = "VERIFIED",
     val createdAt: String,
-    val lastActivity: String
+    val lastActivity: String,
+    val walletStatus: String = "ACTIVE",
+    val tradingStatus: String = "ENABLED",
+    val botStatus: String = "INACTIVE",
+    val supportStatus: String = "NO_OPEN_TICKETS",
+    val securitySummary: String = "2FA Active • 0 Security Alerts"
 )
 
 data class AdminMetricsModel(
@@ -90,7 +95,7 @@ data class AdminTradeModel(
     val direction: String,
     val amount: Double,
     val duration: String,
-    val status: String,
+    val status: String, // ACTIVE, PENDING, COMPLETED, FAILED, CANCELLED
     val timestamp: String
 )
 
@@ -104,7 +109,81 @@ data class AdminBotModel(
     val allocation: Double,
     val status: String, // ACTIVE, PAUSED, STOPPED, ERROR
     val startedTime: String,
-    val lastActivity: String
+    val lastActivity: String,
+    val errorState: String? = null
+)
+
+enum class AdminNotificationCategory(val label: String) {
+    SYSTEM("System"),
+    SECURITY("Security"),
+    WALLET("Wallet"),
+    TRADING("Trading"),
+    BOT("Bot"),
+    SUPPORT("Support")
+}
+
+enum class AdminNotificationAudience(val label: String) {
+    ALL_USERS("All Users"),
+    ACTIVE_TRADERS("Active Traders"),
+    VERIFIED_USERS("Verified Users"),
+    SPECIFIC_USER("Specific User")
+}
+
+enum class AdminNotificationPriority(val label: String) {
+    HIGH("High"),
+    MEDIUM("Medium"),
+    LOW("Low")
+}
+
+data class AdminNotificationRequest(
+    val requestId: String = "",
+    val title: String,
+    val message: String,
+    val category: AdminNotificationCategory,
+    val audience: AdminNotificationAudience,
+    val targetUserId: String? = null,
+    val scheduleTime: String = "IMMEDIATE",
+    val priority: AdminNotificationPriority = AdminNotificationPriority.MEDIUM,
+    val deepLinkRoute: String = "",
+    val createdBy: String = "",
+    val timestamp: String = ""
+)
+
+enum class AdminSupportTicketStatus(val label: String) {
+    OPEN("Open"),
+    IN_PROGRESS("In Progress"),
+    PENDING_USER("Pending User"),
+    RESOLVED("Resolved"),
+    CLOSED("Closed")
+}
+
+enum class AdminSupportTicketPriority(val label: String) {
+    CRITICAL("Critical"),
+    HIGH("High"),
+    MEDIUM("Medium"),
+    LOW("Low")
+}
+
+data class AdminSupportMessageModel(
+    val id: String,
+    val authorUid: String,
+    val authorName: String,
+    val message: String,
+    val timestamp: String,
+    val isInternalNote: Boolean = false
+)
+
+data class AdminSupportTicketModel(
+    val ticketId: String,
+    val userId: String,
+    val userName: String,
+    val subject: String,
+    val category: String,
+    val priority: AdminSupportTicketPriority,
+    val status: AdminSupportTicketStatus,
+    val assignedOperator: String = "Unassigned",
+    val lastUpdate: String,
+    val messages: List<AdminSupportMessageModel> = emptyList()
 )
 
 data class AdminAuditLogModel(
