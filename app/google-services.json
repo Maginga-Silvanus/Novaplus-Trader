@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "117498582483",
+    "project_id": "novaplus-trader",
+    "storage_bucket": "novaplus-trader.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:117498582483:android:da9dc0939cefb62d284b26",
+        "android_client_info": {
+          "package_name": "com.example.novaplustrader"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAv_k24X6CHI0nhD_H1izU1n8rvcuQpogY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
