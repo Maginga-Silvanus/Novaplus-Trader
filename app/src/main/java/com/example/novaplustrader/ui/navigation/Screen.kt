@@ -1,6 +1,11 @@
 package com.example.novaplustrader.ui.navigation
 
 sealed class Screen(val route: String) {
+    object Splash : Screen("splash")
+    object Welcome : Screen("welcome")
+    object Login : Screen("login")
+    object Register : Screen("register")
+
     object Home : Screen("home")
     object Wallet : Screen("wallet")
     object Markets : Screen("markets")
@@ -39,6 +44,11 @@ sealed class Screen(val route: String) {
     object SupportTicketDetails : Screen("support_ticket_details")
     object LegalInformation : Screen("legal_information")
     object RiskDisclosure : Screen("risk_disclosure")
+    object Kyc : Screen("kyc")
+    object KycDocumentUpload : Screen("kyc_document_upload")
+    object ResponsibleGaming : Screen("responsible_gaming")
+    object SelfExclusion : Screen("self_exclusion")
+    object GamingActivity : Screen("gaming_activity")
 
     // Admin & Operations Control Center Destinations
     object AdminPortal : Screen("admin_portal")
@@ -55,5 +65,13 @@ sealed class Screen(val route: String) {
     object AdminSupport : Screen("admin_support")
     object AdminAuditLogs : Screen("admin_audit_logs")
     object AdminSystemStatus : Screen("admin_system_status")
+    object AdminCompliance : Screen("admin_compliance")
+    object AdminFeatureAccess : Screen("admin_feature_access")
+    object AdminResponsibleGaming : Screen("admin_responsible_gaming")
+    object AdminMonitoringDashboard : Screen("admin_monitoring_dashboard")
+    object AdminSystemHealth : Screen("admin_system_health")
+    object AdminIncidentDetails : Screen("admin_incident_details/{incidentId}") {
+        fun createRoute(incidentId: String) = "admin_incident_details/$incidentId"
+    }
     object AdminAccessDenied : Screen("admin_access_denied")
 }

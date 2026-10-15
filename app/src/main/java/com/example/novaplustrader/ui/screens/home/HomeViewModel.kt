@@ -2,14 +2,19 @@ package com.example.novaplustrader.ui.screens.home
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.novaplustrader.data.repository.CryptoWalletRepository
+import com.example.novaplustrader.data.repository.CryptoWalletRepositoryImpl
+import com.example.novaplustrader.data.repository.AuthRepository
+import com.example.novaplustrader.data.repository.AuthRepositoryImpl
 import com.example.novaplustrader.data.repository.NotificationRepository
 import com.example.novaplustrader.data.repository.NotificationRepositoryImpl
+import com.example.novaplustrader.data.repository.MainUserWalletRepository
+import com.example.novaplustrader.data.repository.MainUserWalletRepositoryImpl
 import com.example.novaplustrader.ui.model.Currency
-import com.example.novaplustrader.ui.model.TransactionStatus
-import com.example.novaplustrader.ui.model.TransactionType
-import com.example.novaplustrader.ui.model.TransactionUiModel
 import com.example.novaplustrader.ui.model.WalletUiModel
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -17,7 +22,10 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 class HomeViewModel(
-    private val notificationRepository: NotificationRepository = NotificationRepositoryImpl()
+    private val notificationRepository: NotificationRepository = NotificationRepositoryImpl(),
+    private val authRepository: AuthRepository = AuthRepositoryImpl(),
+    private val mainWalletRepository: MainUserWalletRepository = MainUserWalletRepositoryImpl(),
+    private val cryptoWalletRepository: CryptoWalletRepository = CryptoWalletRepositoryImpl()
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(HomeUiState(isLoading = true))
@@ -26,6 +34,71 @@ class HomeViewModel(
     init {
         loadHomeData()
         observeUnreadNotifications()
+        observeAuthState()
+    }
+
+    private fun observeAuthState() {
+        viewModelScope.launch {
+            authRepository.observeAuthState().collectLatest { user ->
+                if (user != null) {
+                    val fullName = user.fullName.takeIf { it.isNotBlank() } ?: "Nova Trader"
+                    val publicWalletId = "NV-${user.uid}"
+                    val initials = fullName.split(" ").mapNotNull { it.firstOrNull()?.toString() }.take(2).joinToString("").uppercase()
+                    _uiState.update { current ->
+                        current.copy(
+                            userName = fullName,
+                            userInitials = initials.ifEmpty { "NT" },
+                            wallets = current.wallets.map { w ->
+                                w.copy(userName = fullName, walletId = publicWalletId)
+                            }
+                        )
+                    }
+                    cryptoWalletRepository.ensureWallet(user.uid)
+                        .onSuccess {
+                            _uiState.update { it.copy(cryptoPortfolioError = null) }
+                        }
+                        .onFailure { error ->
+                            _uiState.update {
+                                it.copy(
+                                    cryptoPortfolioError = error.localizedMessage
+                                        ?: "Crypto portfolio could not be initialized."
+                                )
+                            }
+                        }
+                    mainWalletRepository.observeWallet(user.uid)
+                        .catch { error ->
+                            _uiState.update {
+                                it.copy(errorMessage = error.localizedMessage ?: "Unable to read your user wallet")
+                            }
+                        }
+                        .collect { wallet ->
+                            _uiState.update { current ->
+                                current.copy(
+                                    totalBalanceUsd = wallet.usdBalance,
+                                    totalBalanceKes = wallet.kesBalance,
+                                    wallets = current.wallets.map { item ->
+                                        when (item.currency) {
+                                            Currency.USD -> item.copy(balanceAmount = wallet.usdBalance)
+                                            Currency.KES -> item.copy(balanceAmount = wallet.kesBalance)
+                                        }
+                                    }
+                                )
+                            }
+                        }
+                } else {
+                    _uiState.update {
+                        it.copy(
+                            userName = "Nova Trader",
+                            userInitials = "NT",
+                            cryptoPortfolioError = null,
+                            totalBalanceUsd = 0.0,
+                            totalBalanceKes = 0.0,
+                            wallets = emptyList()
+                        )
+                    }
+                }
+            }
+        }
     }
 
     private fun observeUnreadNotifications() {
@@ -39,81 +112,47 @@ class HomeViewModel(
     fun loadHomeData() {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, errorMessage = null) }
-            delay(600) // Simulate fast UI state load
 
-            val sampleWallets = listOf(
+            val currentUser = authRepository.getCurrentUser()
+            val fullName = currentUser?.fullName?.takeIf { it.isNotBlank() } ?: "Nova Trader"
+            val publicWalletId = currentUser?.uid?.let { "NV-$it" }.orEmpty()
+            val initials = fullName.split(" ").mapNotNull { it.firstOrNull()?.toString() }.take(2).joinToString("").uppercase()
+            val mainWallet = currentUser?.let { user ->
+                mainWalletRepository.observeWallet(user.uid).first()
+            }
+            val usdBalance = mainWallet?.usdBalance ?: 0.0
+            val kesBalance = mainWallet?.kesBalance ?: 0.0
+
+            val userWallets = listOf(
                 WalletUiModel(
                     id = "w1",
-                    walletId = "#NV-92841",
-                    userName = "Leonard Lopez",
+                    walletId = publicWalletId,
+                    userName = fullName,
                     currency = Currency.USD,
-                    balanceAmount = 6324.49,
-                    cardNumberPlaceholder = "•••• •••• •••• 8842",
+                    balanceAmount = usdBalance,
+                    cardNumberPlaceholder = "USD · TESTING",
                     isPrimary = true
                 ),
                 WalletUiModel(
                     id = "w2",
-                    walletId = "#NV-92842",
-                    userName = "Leonard Lopez",
+                    walletId = publicWalletId,
+                    userName = fullName,
                     currency = Currency.KES,
-                    balanceAmount = 824000.00,
-                    cardNumberPlaceholder = "•••• •••• •••• 4109",
+                    balanceAmount = kesBalance,
+                    cardNumberPlaceholder = "KES · TESTING",
                     isPrimary = false
-                )
-            )
-
-            val sampleTransactions = listOf(
-                TransactionUiModel(
-                    id = "t1",
-                    title = "Bolt Food",
-                    subtitle = "Payment",
-                    type = TransactionType.PAYMENT,
-                    amount = 26.81,
-                    currency = Currency.USD,
-                    isPositive = false,
-                    timestamp = "Today, 1:45 PM",
-                    status = TransactionStatus.COMPLETED
-                ),
-                TransactionUiModel(
-                    id = "t2",
-                    title = "Maria Wanjiku",
-                    subtitle = "Transfer",
-                    type = TransactionType.TRANSFER,
-                    amount = 100.00,
-                    currency = Currency.USD,
-                    isPositive = false,
-                    timestamp = "Today, 10:12 AM",
-                    status = TransactionStatus.COMPLETED
-                ),
-                TransactionUiModel(
-                    id = "t3",
-                    title = "Salary Deposit",
-                    subtitle = "Bank Deposit",
-                    type = TransactionType.DEPOSIT,
-                    amount = 2400.00,
-                    currency = Currency.USD,
-                    isPositive = true,
-                    timestamp = "Yesterday, 4:30 PM",
-                    status = TransactionStatus.COMPLETED
-                ),
-                TransactionUiModel(
-                    id = "t4",
-                    title = "Bitcoin Buy",
-                    subtitle = "Crypto Purchase",
-                    type = TransactionType.CRYPTO_BUY,
-                    amount = 500.00,
-                    currency = Currency.USD,
-                    isPositive = false,
-                    timestamp = "12 Oct, 9:15 AM",
-                    status = TransactionStatus.COMPLETED
                 )
             )
 
             _uiState.update {
                 it.copy(
                     isLoading = false,
-                    wallets = sampleWallets,
-                    recentTransactions = sampleTransactions
+                    userName = fullName,
+                    userInitials = initials.ifEmpty { "NT" },
+                    totalBalanceUsd = usdBalance,
+                    totalBalanceKes = kesBalance,
+                    wallets = userWallets,
+                    recentTransactions = emptyList()
                 )
             }
         }

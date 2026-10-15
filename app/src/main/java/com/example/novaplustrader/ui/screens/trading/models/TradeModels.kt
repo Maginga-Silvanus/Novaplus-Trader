@@ -13,13 +13,13 @@ enum class TradeDuration(val label: String, val seconds: Int) {
     THIRTY_MIN("30m", 1800)
 }
 
-enum class Timeframe(val label: String) {
-    M1("1m"),
-    M5("5m"),
-    M15("15m"),
-    H1("1H"),
-    H4("4H"),
-    D1("1D")
+enum class Timeframe(val label: String, val interval: String, val intervalMs: Long) {
+    M1("1m", "1m", 60_000L),
+    M5("5m", "5m", 300_000L),
+    M15("15m", "15m", 900_000L),
+    H1("1H", "1h", 3_600_000L),
+    H4("4H", "4h", 14_400_000L),
+    D1("1D", "1d", 86_400_000L)
 }
 
 data class ChartPoint(
@@ -37,5 +37,5 @@ data class TradingAsset(
     val low24h: Double,
     val volume24h: String,
     val payoutPercentage: Int = 85,
-    val chartDataMap: Map<Timeframe, List<Float>> = emptyMap()
+    val candleDataMap: Map<Timeframe, List<com.example.novaplustrader.domain.model.trading.MarketCandle>> = emptyMap()
 )

@@ -1,7 +1,9 @@
 package com.example.novaplustrader.data.repository
 
+import android.net.Uri
 import com.example.novaplustrader.data.remote.FinancialBackendService
 import com.example.novaplustrader.data.remote.FinancialBackendServiceImpl
+import com.google.firebase.auth.FirebaseAuth
 import com.example.novaplustrader.domain.model.ledger.DepositRequest
 import com.example.novaplustrader.domain.model.ledger.FeeModel
 import com.example.novaplustrader.domain.model.ledger.FinancialTransaction
@@ -29,15 +31,16 @@ import kotlinx.coroutines.launch
 import java.util.UUID
 
 class WalletRepositoryImpl(
-    private val backendService: FinancialBackendService = FinancialBackendServiceImpl()
+    private val backendService: FinancialBackendService = FinancialBackendServiceImpl(),
+    private val auth: FirebaseAuth = FirebaseAuth.getInstance()
 ) : WalletRepository {
 
     private val scope = CoroutineScope(Dispatchers.Default)
 
     private val _balances = MutableStateFlow(
         mapOf(
-            Currency.USD to 6324.49,
-            Currency.KES to 824000.00
+            Currency.USD to 0.0,
+            Currency.KES to 0.0
         )
     )
 
@@ -115,10 +118,12 @@ class WalletRepositoryImpl(
         amount: Double,
         currency: Currency
     ): Result<TransactionUiModel> {
+        val userId = auth.currentUser?.uid
+            ?: return Result.failure(IllegalStateException("Sign in before requesting a deposit"))
         val walletId = if (currency == Currency.USD) "w_usd" else "w_kes"
         val req = DepositRequest(
             idempotencyKey = "idemp_dep_${UUID.randomUUID().toString().take(10)}",
-            userId = "usr_9901",
+            userId = userId,
             walletId = walletId,
             method = method,
             amountMinorUnits = Math.round(amount * 100.0),
@@ -136,10 +141,12 @@ class WalletRepositoryImpl(
         currency: Currency,
         securityPin: String
     ): Result<TransactionUiModel> {
+        val userId = auth.currentUser?.uid
+            ?: return Result.failure(IllegalStateException("Sign in before requesting a withdrawal"))
         val walletId = if (currency == Currency.USD) "w_usd" else "w_kes"
         val req = WithdrawalRequest(
             idempotencyKey = "idemp_wd_${UUID.randomUUID().toString().take(10)}",
-            userId = "usr_9901",
+            userId = userId,
             walletId = walletId,
             method = method,
             destination = destination,
@@ -158,10 +165,12 @@ class WalletRepositoryImpl(
         currency: Currency,
         note: String
     ): Result<TransactionUiModel> {
+        val userId = auth.currentUser?.uid
+            ?: return Result.failure(IllegalStateException("Sign in before requesting a transfer"))
         val walletId = if (currency == Currency.USD) "w_usd" else "w_kes"
         val req = TransferRequest(
             idempotencyKey = "idemp_trf_${UUID.randomUUID().toString().take(10)}",
-            senderUserId = "usr_9901",
+            senderUserId = userId,
             senderWalletId = walletId,
             recipientId = recipientId,
             amountMinorUnits = Math.round(amount * 100.0),
@@ -175,10 +184,21 @@ class WalletRepositoryImpl(
 
     override fun generateReceiveRequest(
         requestedAmount: Double?,
-        currency: Currency
+        currency: Currency,
+        walletId: String,
+        userName: String
     ): String {
-        val amtPart = if (requestedAmount != null && requestedAmount > 0) "&amount=$requestedAmount" else ""
-        return "novapay://transfer?recipient=#NV-92841&currency=${currency.code}$amtPart"
+        if (walletId.isBlank()) return ""
+        val builder = Uri.Builder()
+            .scheme("novapay")
+            .authority("transfer")
+            .appendQueryParameter("recipient", walletId)
+            .appendQueryParameter("name", userName)
+            .appendQueryParameter("currency", currency.code)
+        if (requestedAmount != null && requestedAmount > 0) {
+            builder.appendQueryParameter("amount", requestedAmount.toString())
+        }
+        return builder.build().toString()
     }
 
     private fun mapToUiModel(tx: FinancialTransaction): TransactionUiModel {

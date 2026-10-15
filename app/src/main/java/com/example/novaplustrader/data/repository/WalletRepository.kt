@@ -55,6 +55,8 @@ interface WalletRepository {
 
     fun generateReceiveRequest(
         requestedAmount: Double?,
-        currency: Currency
+        currency: Currency,
+        walletId: String,
+        userName: String
     ): String
 }

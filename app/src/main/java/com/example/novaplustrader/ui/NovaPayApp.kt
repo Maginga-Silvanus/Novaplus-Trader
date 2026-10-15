@@ -1,5 +1,7 @@
 package com.example.novaplustrader.ui
 
+import android.app.Activity
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -11,6 +13,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.novaplustrader.ui.components.BottomNavigationBar
@@ -25,28 +29,44 @@ fun NovaPayApp() {
     NovaPlusTraderTheme {
         val navController = rememberNavController()
         val navBackStackEntry by navController.currentBackStackEntryAsState()
-        val currentRoute = navBackStackEntry?.destination?.route ?: Screen.Home.route
+        val currentRoute = navBackStackEntry?.destination?.route ?: Screen.Splash.route
+
+        val context = LocalContext.current
+        BackHandler(enabled = currentRoute == Screen.Home.route || currentRoute == Screen.Welcome.route) {
+            (context as? Activity)?.moveTaskToBack(true)
+        }
+
+        val routesWithoutBottomBar = setOf(
+            Screen.Splash.route,
+            Screen.Welcome.route,
+            Screen.Login.route,
+            Screen.Register.route
+        )
+        val showBottomBar = currentRoute !in routesWithoutBottomBar
 
         var isQuickMenuExpanded by remember { mutableStateOf(false) }
 
         Scaffold(
             bottomBar = {
-                BottomNavigationBar(
-                    currentRoute = currentRoute,
-                    onNavigateToRoute = { route ->
-                        if (route != currentRoute) {
-                            navController.navigate(route) {
-                                popUpTo(Screen.Home.route) { saveState = true }
-                                launchSingleTop = true
-                                restoreState = true
+                if (showBottomBar) {
+                    BottomNavigationBar(
+                        currentRoute = currentRoute,
+                        onNavigateToRoute = { route ->
+                            isQuickMenuExpanded = false
+                            if (route != currentRoute) {
+                                navController.navigate(route) {
+                                    popUpTo(Screen.Home.route) { saveState = true }
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
                             }
-                        }
-                    },
-                    onCenterPlusClick = {
-                        isQuickMenuExpanded = !isQuickMenuExpanded
-                    },
-                    isQuickMenuExpanded = isQuickMenuExpanded
-                )
+                        },
+                        onCenterPlusClick = {
+                            isQuickMenuExpanded = !isQuickMenuExpanded
+                        },
+                        isQuickMenuExpanded = isQuickMenuExpanded
+                    )
+                }
             },
             containerColor = BackgroundDark
         ) { innerPadding ->
@@ -55,6 +75,7 @@ fun NovaPayApp() {
                     .fillMaxSize()
                     .background(BackgroundDark)
                     .padding(innerPadding)
+                    .padding(top = 8.dp)
             ) {
                 NovaNavGraph(navController = navController)
 
@@ -67,7 +88,10 @@ fun NovaPayApp() {
                     onReceiveClick = { navController.navigate(Screen.Receive.route) },
                     onScanQRClick = { navController.navigate(Screen.ScanQR.route) },
                     onBuyCryptoClick = { navController.navigate(Screen.BuyCrypto.route) },
-                    onTradeClick = { navController.navigate(Screen.Trade.route) }
+                    onTradeClick = { navController.navigate(Screen.Trade.route) },
+                    onTradingBotClick = { navController.navigate(Screen.TradingBot.route) },
+                    onCasinoSpinClick = { navController.navigate(Screen.CasinoSpin.route) },
+                    onBettingClick = { navController.navigate(Screen.Betting.route) }
                 )
             }
         }

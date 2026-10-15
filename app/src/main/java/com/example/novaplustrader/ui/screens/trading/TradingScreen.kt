@@ -40,9 +40,9 @@ import com.example.novaplustrader.ui.screens.trading.components.BuySellSegmented
 import com.example.novaplustrader.ui.screens.trading.components.EnhancedTradingChart
 import com.example.novaplustrader.ui.screens.trading.components.PercentageShortcuts
 import com.example.novaplustrader.ui.screens.trading.components.TimeframeSelector
-import com.example.novaplustrader.ui.screens.trading.components.TradeDurationSelector
 import com.example.novaplustrader.ui.screens.trading.components.TradingHeaderBar
 import com.example.novaplustrader.ui.screens.trading.models.TradeDirection
+import com.example.novaplustrader.ui.model.Currency
 import com.example.novaplustrader.ui.theme.BackgroundDark
 import com.example.novaplustrader.ui.theme.ElectricLime
 import com.example.novaplustrader.ui.theme.FinancialGreen
@@ -63,7 +63,7 @@ fun TradingScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val asset = uiState.selectedAsset
-    val chartPoints = asset.chartDataMap[uiState.selectedTimeframe] ?: emptyList()
+    val candles = asset.candleDataMap[uiState.selectedTimeframe].orEmpty()
 
     Box(
         modifier = modifier
@@ -82,6 +82,17 @@ fun TradingScreen(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(bottom = 100.dp, start = 16.dp, end = 16.dp)
             ) {
+                item {
+                    Text(
+                        text = when (uiState.walletMode) {
+                            "paper" -> "PAPER TRADING · TEST FUNDS ONLY · No exchange orders or on-chain assets."
+                            else -> "Trading is unavailable until the secure backend is configured."
+                        },
+                        color = if (uiState.walletMode == "paper") ElectricLime else FinancialRed,
+                        fontSize = 11.sp,
+                        modifier = Modifier.padding(top = 8.dp, bottom = 12.dp)
+                    )
+                }
                 // 1. Asset Price & 24h Stats Header
                 item {
                     Column(modifier = Modifier.fillMaxWidth()) {
@@ -92,7 +103,11 @@ fun TradingScreen(
                         ) {
                             Column {
                                 Text(
-                                    text = Formatters.formatCurrency(asset.currentPrice, uiState.currency),
+                                    text = if (asset.currentPrice > 0.0) {
+                                        String.format("%.8f USDT", asset.currentPrice)
+                                    } else {
+                                        "Loading live price"
+                                    },
                                     color = TextPrimary,
                                     fontSize = 32.sp,
                                     fontWeight = FontWeight.Bold,
@@ -114,7 +129,11 @@ fun TradingScreen(
                                     .padding(horizontal = 12.dp, vertical = 6.dp)
                             ) {
                                 Text(
-                                    text = Formatters.formatPercentage(asset.change24hPercentage),
+                                    text = if (uiState.marketDataTimestamp != null) {
+                                        Formatters.formatPercentage(asset.change24hPercentage)
+                                    } else {
+                                        "--"
+                                    },
                                     color = changeColor,
                                     fontSize = 14.sp,
                                     fontWeight = FontWeight.Bold
@@ -137,7 +156,7 @@ fun TradingScreen(
                             Column {
                                 Text(text = "24h High", color = TextMuted, fontSize = 10.sp)
                                 Text(
-                                    text = Formatters.formatCurrency(asset.high24h, uiState.currency),
+                                    text = if (asset.high24h > 0.0) String.format("%.8f USDT", asset.high24h) else "--",
                                     color = TextPrimary,
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold
@@ -146,7 +165,7 @@ fun TradingScreen(
                             Column {
                                 Text(text = "24h Low", color = TextMuted, fontSize = 10.sp)
                                 Text(
-                                    text = Formatters.formatCurrency(asset.low24h, uiState.currency),
+                                    text = if (asset.low24h > 0.0) String.format("%.8f USDT", asset.low24h) else "--",
                                     color = TextPrimary,
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold
@@ -175,10 +194,30 @@ fun TradingScreen(
 
                     Spacer(modifier = Modifier.height(12.dp))
                     EnhancedTradingChart(
-                        dataPoints = chartPoints,
-                        currentPrice = asset.currentPrice,
-                        isPositiveChange = asset.change24hPercentage >= 0
+                        candles = candles,
+                        currentPrice = asset.currentPrice
                     )
+                    Text(
+                        text = when {
+                            uiState.isMarketPriceStale && uiState.marketDataTimestamp == null ->
+                                "Waiting for fresh market data · ${uiState.marketConnectionState.label}"
+                            uiState.isMarketPriceStale -> "Market feed: ${uiState.marketConnectionState.label}"
+                            uiState.marketDataTimestamp != null ->
+                                "Live exchange data · updated ${uiState.marketDataTimestamp}"
+                            else -> "Connecting to live market data…"
+                        },
+                        color = if (uiState.isMarketPriceStale) FinancialRed else TextMuted,
+                        fontSize = 11.sp,
+                        modifier = Modifier.padding(top = 8.dp, start = 4.dp)
+                    )
+                    uiState.marketDataError?.let { error ->
+                        Text(
+                            text = error,
+                            color = FinancialRed,
+                            fontSize = 11.sp,
+                            modifier = Modifier.padding(top = 4.dp, start = 4.dp)
+                        )
+                    }
                 }
 
                 // 3. BUY / SELL Direction Control
@@ -207,10 +246,23 @@ fun TradingScreen(
                             letterSpacing = 1.sp
                         )
                         Text(
-                            text = "Available: ${Formatters.formatCurrency(uiState.availableBalance, uiState.currency)}",
+                            text = if (uiState.selectedDirection == TradeDirection.BUY) {
+                                "TEST USD available: ${Formatters.formatCurrency(uiState.availableBalance, uiState.currency)}"
+                            } else {
+                                val assetCode = asset.symbol.substringBefore("/")
+                                "Available: ${String.format("%.8f", uiState.assetBalances[assetCode] ?: 0.0)} $assetCode"
+                            },
                             color = ElectricLime,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold
+                        )
+                    }
+                    if (uiState.selectedDirection == TradeDirection.BUY) {
+                        Text(
+                            text = "Main User Wallet · TEST FUNDS (PAPER MONEY)",
+                            color = TextMuted,
+                            fontSize = 10.sp,
+                            modifier = Modifier.padding(top = 4.dp, start = 4.dp)
                         )
                     }
 
@@ -223,7 +275,11 @@ fun TradingScreen(
                         shape = RoundedCornerShape(16.dp),
                         prefix = {
                             Text(
-                                text = "${uiState.currency.symbol} ",
+                                text = if (uiState.selectedDirection == TradeDirection.BUY) {
+                                    "${uiState.currency.symbol} "
+                                } else {
+                                    "${asset.symbol.substringBefore("/")} "
+                                },
                                 color = ElectricLime,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 18.sp
@@ -237,8 +293,18 @@ fun TradingScreen(
                             focusedTextColor = TextPrimary,
                             unfocusedTextColor = TextPrimary
                         ),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         singleLine = true
+                    )
+                    Text(
+                        text = if (uiState.selectedDirection == TradeDirection.BUY) {
+                            "Enter the TEST USD amount to spend. Simulated fee: ${String.format("%.2f", uiState.paperTradeFeeBps / 100.0)}%."
+                        } else {
+                            "Enter the ${asset.symbol.substringBefore("/")} quantity to sell from your paper holdings."
+                        },
+                        color = TextMuted,
+                        fontSize = 11.sp,
+                        modifier = Modifier.padding(top = 6.dp, start = 4.dp)
                     )
 
                     if (uiState.validationError != null) {
@@ -259,22 +325,19 @@ fun TradingScreen(
                     )
                 }
 
-                // 5. Trade Duration
-                item {
-                    Spacer(modifier = Modifier.height(16.dp))
-                    TradeDurationSelector(
-                        selectedDuration = uiState.selectedDuration,
-                        onDurationSelected = { viewModel.selectDuration(it) }
-                    )
-                }
-
-                // 6. Trade Summary Card & Submit Button
+                // 5. Spot order summary and submit
                 item {
                     Spacer(modifier = Modifier.height(20.dp))
 
                     val tradeAmount = uiState.tradeAmountString.toDoubleOrNull() ?: 0.0
-                    val payoutAmount = tradeAmount * (1 + (asset.payoutPercentage / 100.0))
-                    val balanceAfter = (uiState.availableBalance - tradeAmount).coerceAtLeast(0.0)
+                    val isBuy = uiState.selectedDirection == TradeDirection.BUY
+                    val assetQuantity = if (isBuy && asset.currentPrice > 0) tradeAmount / asset.currentPrice else tradeAmount
+                    val grossUsd = if (isBuy) tradeAmount else tradeAmount * asset.currentPrice
+                    val feeUsd = kotlin.math.ceil(grossUsd * uiState.paperTradeFeeBps / 10_000.0 * 100.0) / 100.0
+                    val balanceAfter = when (uiState.selectedDirection) {
+                        TradeDirection.BUY -> (uiState.availableBalance - grossUsd - feeUsd).coerceAtLeast(0.0)
+                        TradeDirection.SELL -> uiState.availableBalance + grossUsd - feeUsd
+                    }
 
                     Column(
                         modifier = Modifier
@@ -303,10 +366,10 @@ fun TradingScreen(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Text(text = "Est. Return (${asset.payoutPercentage}%)", color = TextMuted, fontSize = 12.sp)
+                            Text(text = if (isBuy) "Estimated ${asset.symbol.substringBefore("/")} quantity" else "Quantity sold", color = TextMuted, fontSize = 12.sp)
                             Text(
-                                text = "+${Formatters.formatCurrency(payoutAmount, uiState.currency)}",
-                                color = FinancialGreen,
+                                text = "${String.format("%.8f", assetQuantity)} ${asset.symbol.substringBefore("/")}",
+                                color = TextPrimary,
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold
                             )
@@ -316,7 +379,15 @@ fun TradingScreen(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Text(text = "Balance After Trade", color = TextMuted, fontSize = 12.sp)
+                            Text(text = "Estimated paper fee", color = TextMuted, fontSize = 12.sp)
+                            Text(text = Formatters.formatCurrency(feeUsd, uiState.currency), color = TextPrimary, fontSize = 13.sp)
+                        }
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(text = "TEST USD balance after order", color = TextMuted, fontSize = 12.sp)
                             Text(
                                 text = Formatters.formatCurrency(balanceAfter, uiState.currency),
                                 color = TextPrimary,
@@ -330,10 +401,55 @@ fun TradingScreen(
 
                     val buttonColor = if (uiState.selectedDirection == TradeDirection.BUY) FinancialGreen else FinancialRed
                     PrimaryButton(
-                        text = "EXECUTE ${uiState.selectedDirection.label} (${asset.symbol})",
+                        text = "PAPER ${uiState.selectedDirection.label} (${asset.symbol})",
                         onClick = { viewModel.openConfirmSheet() },
                         buttonColor = buttonColor
                     )
+                }
+
+                item {
+                    Spacer(modifier = Modifier.height(24.dp))
+                    Text(
+                        text = "Recent crypto trade requests",
+                        color = TextPrimary,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    if (uiState.recentTradeRequests.isEmpty()) {
+                        Text(
+                            text = "No trade requests yet",
+                            color = TextMuted,
+                            fontSize = 12.sp,
+                            modifier = Modifier.padding(top = 8.dp, bottom = 16.dp)
+                        )
+                    } else {
+                        Column(
+                            modifier = Modifier.padding(top = 8.dp, bottom = 16.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            uiState.recentTradeRequests.take(10).forEach { request ->
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(
+                                        text = "${request.direction} ${request.asset} · ${String.format("%.8f", request.quantity)} ${request.asset}",
+                                        color = TextPrimary,
+                                        fontSize = 12.sp
+                                    )
+                                    Text(
+                                        text = request.status,
+                                        color = if (request.status == "FILLED_TEST") FinancialGreen else TextMuted,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                                request.message?.let { message ->
+                                    Text(text = message, color = TextMuted, fontSize = 10.sp)
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -350,21 +466,29 @@ fun TradingScreen(
 
         if (uiState.isConfirmSheetOpen) {
             val tradeAmount = uiState.tradeAmountString.toDoubleOrNull() ?: 0.0
-            val payoutAmount = tradeAmount * (1 + (asset.payoutPercentage / 100.0))
-            val balanceAfter = (uiState.availableBalance - tradeAmount).coerceAtLeast(0.0)
+            val isBuy = uiState.selectedDirection == TradeDirection.BUY
+            val assetQuantity = if (isBuy && asset.currentPrice > 0) tradeAmount / asset.currentPrice else tradeAmount
+            val grossUsd = if (isBuy) tradeAmount else tradeAmount * asset.currentPrice
+            val feeUsd = kotlin.math.ceil(grossUsd * uiState.paperTradeFeeBps / 10_000.0 * 100.0) / 100.0
+            val balanceAfter = when (uiState.selectedDirection) {
+                TradeDirection.BUY -> (uiState.availableBalance - grossUsd - feeUsd).coerceAtLeast(0.0)
+                TradeDirection.SELL -> uiState.availableBalance + grossUsd - feeUsd
+            }
 
             ConfirmationSheet(
-                title = "Confirm Binary Trade",
+                title = "Confirm SIMULATED TRADE",
                 details = listOf(
                     "Asset Pair" to asset.symbol,
                     "Direction" to uiState.selectedDirection.label,
-                    "Trade Amount" to Formatters.formatCurrency(tradeAmount, uiState.currency),
-                    "Entry Price" to Formatters.formatCurrency(asset.currentPrice, uiState.currency),
-                    "Duration" to uiState.selectedDuration.label,
-                    "Potential Return" to "+${Formatters.formatCurrency(payoutAmount, uiState.currency)}",
-                    "Balance After" to Formatters.formatCurrency(balanceAfter, uiState.currency)
+                    "Order Value" to Formatters.formatCurrency(grossUsd, uiState.currency),
+                    "Exchange Rate" to "1 ${asset.symbol.substringBefore("/")} = ${String.format("%.8f USDT", asset.currentPrice)}",
+                    "Estimated Quantity" to "${String.format("%.8f", assetQuantity)} ${asset.symbol.substringBefore("/")}",
+                    "Estimated TEST fee" to Formatters.formatCurrency(feeUsd, uiState.currency),
+                    if (isBuy) "Estimated Total TEST Cost" to Formatters.formatCurrency(grossUsd + feeUsd, uiState.currency)
+                    else "Estimated Net TEST Proceeds" to Formatters.formatCurrency(grossUsd - feeUsd, uiState.currency),
+                    "TEST USD Balance After" to Formatters.formatCurrency(balanceAfter, uiState.currency)
                 ),
-                confirmButtonText = "Confirm Trade",
+                confirmButtonText = "Confirm PAPER TRADE",
                 isLoading = uiState.isLoading,
                 onConfirm = { viewModel.executeTrade() },
                 onDismiss = { viewModel.closeConfirmSheet() }
@@ -384,8 +508,9 @@ fun TradingScreen(
                 contentAlignment = Alignment.Center
             ) {
                 SuccessAnimation(
-                    title = "Trade Order Executed!",
-                    subtitle = "Your ${uiState.selectedDirection.label} position on ${asset.symbol} is active for ${uiState.selectedDuration.label}.",
+                    title = "SIMULATED TRADE RECEIPT",
+                    subtitle = uiState.tradeSuccessMessage
+                        ?: "Paper order for ${asset.symbol} completed. No real funds or assets were exchanged.",
                     onDoneClick = { viewModel.dismissSuccessDialog() }
                 )
             }

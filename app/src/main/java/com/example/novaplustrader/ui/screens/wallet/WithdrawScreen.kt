@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -24,6 +25,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -51,6 +53,7 @@ import com.example.novaplustrader.ui.screens.trading.components.PercentageShortc
 import com.example.novaplustrader.ui.screens.wallet.models.WithdrawMethod
 import com.example.novaplustrader.ui.theme.BackgroundDark
 import com.example.novaplustrader.ui.theme.ElectricLime
+import com.example.novaplustrader.ui.theme.ElectricLimeSurface
 import com.example.novaplustrader.ui.theme.FinancialGreen
 import com.example.novaplustrader.ui.theme.FinancialRed
 import com.example.novaplustrader.ui.theme.OverlayDark
@@ -91,7 +94,7 @@ fun WithdrawScreen(
                 )
 
                 Text(
-                    text = "Withdraw Funds",
+                    text = "Withdraw TEST Funds",
                     color = TextPrimary,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold
@@ -107,10 +110,10 @@ fun WithdrawScreen(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(bottom = 100.dp, start = 16.dp, end = 16.dp)
             ) {
-                // Withdrawal Method
+                // Withdrawal Method Selection
                 item {
                     Text(
-                        text = "WITHDRAWAL DESTINATION METHOD",
+                        text = "TEST WITHDRAWAL ONLY",
                         color = TextMuted,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
@@ -120,7 +123,7 @@ fun WithdrawScreen(
                     Spacer(modifier = Modifier.height(10.dp))
 
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        WithdrawMethod.entries.forEach { method ->
+                        listOf(WithdrawMethod.MPESA).forEach { method ->
                             val isSelected = method == uiState.selectedWithdrawMethod
                             val borderColor = if (isSelected) ElectricLime else SurfaceBorder
 
@@ -162,35 +165,335 @@ fun WithdrawScreen(
                     }
                 }
 
-                // Destination Address / Phone Input
+                // Dynamic Method-Specific Withdrawal Input
                 item {
-                    Spacer(modifier = Modifier.height(20.dp))
-                    Text(
-                        text = "DESTINATION ACCOUNT / PHONE",
-                        color = TextMuted,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 1.sp
-                    )
+                    when (uiState.selectedWithdrawMethod) {
+                        WithdrawMethod.MPESA -> {
+                            Text(
+                                text = "TEST WITHDRAWAL · This only reduces your simulated balance. No payout or transfer is sent.",
+                                color = ElectricLime,
+                                fontSize = 12.sp,
+                                modifier = Modifier.padding(vertical = 14.dp)
+                            )
+                        }
 
-                    Spacer(modifier = Modifier.height(8.dp))
+                        WithdrawMethod.BANK -> {
+                            Spacer(modifier = Modifier.height(18.dp))
+                            Text(
+                                text = "SELECT LOCAL BANK & ACCOUNT NUMBER",
+                                color = TextMuted,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 1.sp
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
 
-                    OutlinedTextField(
-                        value = uiState.withdrawDestination,
-                        onValueChange = { viewModel.updateWithdrawDestination(it) },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(16.dp),
-                        placeholder = { Text("Enter destination address or phone", color = TextMuted) },
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedContainerColor = SurfaceDarkCard,
-                            unfocusedContainerColor = SurfaceDarkCard,
-                            focusedBorderColor = ElectricLime,
-                            unfocusedBorderColor = SurfaceBorder,
-                            focusedTextColor = TextPrimary,
-                            unfocusedTextColor = TextPrimary
-                        ),
-                        singleLine = true
-                    )
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .background(SurfaceDarkCard)
+                                    .border(1.dp, SurfaceBorder, RoundedCornerShape(16.dp))
+                                    .padding(16.dp),
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                val kenyaBanks = listOf("KCB Bank", "DTB Bank", "Equity Bank", "Co-op Bank", "NCBA Bank", "Absa Bank")
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    kenyaBanks.take(3).forEach { bank ->
+                                        val isSelected = bank == uiState.selectedBankName
+                                        Box(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .clip(RoundedCornerShape(10.dp))
+                                                .background(if (isSelected) ElectricLimeSurface else BackgroundDark)
+                                                .border(1.dp, if (isSelected) ElectricLime else SurfaceBorder, RoundedCornerShape(10.dp))
+                                                .clickable { viewModel.selectBankName(bank) }
+                                                .padding(vertical = 10.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(text = bank, color = if (isSelected) ElectricLime else TextPrimary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                        }
+                                    }
+                                }
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    kenyaBanks.drop(3).forEach { bank ->
+                                        val isSelected = bank == uiState.selectedBankName
+                                        Box(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .clip(RoundedCornerShape(10.dp))
+                                                .background(if (isSelected) ElectricLimeSurface else BackgroundDark)
+                                                .border(1.dp, if (isSelected) ElectricLime else SurfaceBorder, RoundedCornerShape(10.dp))
+                                                .clickable { viewModel.selectBankName(bank) }
+                                                .padding(vertical = 10.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(text = bank, color = if (isSelected) ElectricLime else TextPrimary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                        }
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(text = "Bank Account Number Withdrawing To", color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                                OutlinedTextField(
+                                    value = uiState.withdrawDestination,
+                                    onValueChange = { viewModel.updateWithdrawDestination(it) },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    placeholder = { Text("e.g. 1122334455", color = TextMuted) },
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedContainerColor = BackgroundDark,
+                                        unfocusedContainerColor = BackgroundDark,
+                                        focusedBorderColor = ElectricLime,
+                                        unfocusedBorderColor = SurfaceBorder,
+                                        focusedTextColor = TextPrimary,
+                                        unfocusedTextColor = TextPrimary
+                                    ),
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                    singleLine = true
+                                )
+                            }
+                        }
+
+                        WithdrawMethod.CARD -> {
+                            Spacer(modifier = Modifier.height(18.dp))
+                            Text(
+                                text = "DEBIT / CREDIT CARD PAYOUT",
+                                color = TextMuted,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 1.sp
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .background(SurfaceDarkCard)
+                                    .border(1.dp, SurfaceBorder, RoundedCornerShape(16.dp))
+                                    .padding(16.dp),
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Text(text = "Select Saved Card or Add New", color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    uiState.savedCards.forEachIndexed { idx, card ->
+                                        val isSelected = idx == uiState.selectedSavedCardIndex && !uiState.isAddNewCardForWithdrawal
+                                        Box(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .clip(RoundedCornerShape(10.dp))
+                                                .background(if (isSelected) ElectricLimeSurface else BackgroundDark)
+                                                .border(1.dp, if (isSelected) ElectricLime else SurfaceBorder, RoundedCornerShape(10.dp))
+                                                .clickable { viewModel.selectSavedCardForWithdrawal(idx) }
+                                                .padding(vertical = 10.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(text = card, color = if (isSelected) ElectricLime else TextPrimary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                        }
+                                    }
+
+                                    val isNewSelected = uiState.isAddNewCardForWithdrawal
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .clip(RoundedCornerShape(10.dp))
+                                            .background(if (isNewSelected) ElectricLimeSurface else BackgroundDark)
+                                            .border(1.dp, if (isNewSelected) ElectricLime else SurfaceBorder, RoundedCornerShape(10.dp))
+                                            .clickable { viewModel.selectSavedCardForWithdrawal(-1) }
+                                            .padding(vertical = 10.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(text = "+ Add New", color = if (isNewSelected) ElectricLime else TextPrimary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+
+                                if (uiState.isAddNewCardForWithdrawal) {
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(text = "Cardholder Name", color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                                    OutlinedTextField(
+                                        value = uiState.cardHolderName,
+                                        onValueChange = { viewModel.updateCardDetails(it, uiState.cardNumber, uiState.cardExpiry, uiState.cardCvv, uiState.isCardSaved) },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        placeholder = { Text("e.g. ${uiState.userName}", color = TextMuted) },
+                                        shape = RoundedCornerShape(12.dp),
+                                        colors = OutlinedTextFieldDefaults.colors(
+                                            focusedContainerColor = BackgroundDark,
+                                            unfocusedContainerColor = BackgroundDark,
+                                            focusedBorderColor = ElectricLime,
+                                            unfocusedBorderColor = SurfaceBorder,
+                                            focusedTextColor = TextPrimary,
+                                            unfocusedTextColor = TextPrimary
+                                        ),
+                                        singleLine = true
+                                    )
+
+                                    Text(text = "Card Number Withdrawing To", color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                                    OutlinedTextField(
+                                        value = uiState.cardNumber,
+                                        onValueChange = {
+                                            viewModel.updateCardDetails(uiState.cardHolderName, it, uiState.cardExpiry, uiState.cardCvv, uiState.isCardSaved)
+                                            viewModel.updateWithdrawDestination("Card $it")
+                                        },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        placeholder = { Text("e.g. 4532 •••• •••• 8842", color = TextMuted) },
+                                        shape = RoundedCornerShape(12.dp),
+                                        colors = OutlinedTextFieldDefaults.colors(
+                                            focusedContainerColor = BackgroundDark,
+                                            unfocusedContainerColor = BackgroundDark,
+                                            focusedBorderColor = ElectricLime,
+                                            unfocusedBorderColor = SurfaceBorder,
+                                            focusedTextColor = TextPrimary,
+                                            unfocusedTextColor = TextPrimary
+                                        ),
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                        singleLine = true
+                                    )
+
+                                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(text = "Expiry (MM/YY)", color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                                            Spacer(modifier = Modifier.height(4.dp))
+                                            OutlinedTextField(
+                                                value = uiState.cardExpiry,
+                                                onValueChange = { viewModel.updateCardDetails(uiState.cardHolderName, uiState.cardNumber, it, uiState.cardCvv, uiState.isCardSaved) },
+                                                modifier = Modifier.fillMaxWidth(),
+                                                placeholder = { Text("12/28", color = TextMuted) },
+                                                shape = RoundedCornerShape(12.dp),
+                                                colors = OutlinedTextFieldDefaults.colors(
+                                                    focusedContainerColor = BackgroundDark,
+                                                    unfocusedContainerColor = BackgroundDark,
+                                                    focusedBorderColor = ElectricLime,
+                                                    unfocusedBorderColor = SurfaceBorder,
+                                                    focusedTextColor = TextPrimary,
+                                                    unfocusedTextColor = TextPrimary
+                                                ),
+                                                singleLine = true
+                                            )
+                                        }
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(text = "CVV", color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                                            Spacer(modifier = Modifier.height(4.dp))
+                                            OutlinedTextField(
+                                                value = uiState.cardCvv,
+                                                onValueChange = { viewModel.updateCardDetails(uiState.cardHolderName, uiState.cardNumber, uiState.cardExpiry, it, uiState.isCardSaved) },
+                                                modifier = Modifier.fillMaxWidth(),
+                                                placeholder = { Text("882", color = TextMuted) },
+                                                shape = RoundedCornerShape(12.dp),
+                                                colors = OutlinedTextFieldDefaults.colors(
+                                                    focusedContainerColor = BackgroundDark,
+                                                    unfocusedContainerColor = BackgroundDark,
+                                                    focusedBorderColor = ElectricLime,
+                                                    unfocusedBorderColor = SurfaceBorder,
+                                                    focusedTextColor = TextPrimary,
+                                                    unfocusedTextColor = TextPrimary
+                                                ),
+                                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                                                singleLine = true
+                                            )
+                                        }
+                                    }
+                                } else {
+                                    val currentCard = uiState.savedCards.getOrNull(uiState.selectedSavedCardIndex) ?: "Visa •••• 8842"
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(10.dp))
+                                            .background(ElectricLimeSurface)
+                                            .padding(12.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Info,
+                                            contentDescription = "Card Info",
+                                            tint = ElectricLime,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            text = "Selected Payout Card: $currentCard",
+                                            color = ElectricLime,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        WithdrawMethod.CRYPTO_WALLET -> {
+                            Spacer(modifier = Modifier.height(18.dp))
+                            Text(
+                                text = "EXTERNAL CRYPTO / BITCOIN WALLET",
+                                color = TextMuted,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 1.sp
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .background(SurfaceDarkCard)
+                                    .border(1.dp, SurfaceBorder, RoundedCornerShape(16.dp))
+                                    .padding(16.dp),
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                val cryptoAssets = listOf("BTC", "ETH", "USDT", "USDC")
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    cryptoAssets.forEach { asset ->
+                                        val isSelected = asset == uiState.selectedCryptoAsset
+                                        Box(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .clip(RoundedCornerShape(10.dp))
+                                                .background(if (isSelected) ElectricLimeSurface else BackgroundDark)
+                                                .border(1.dp, if (isSelected) ElectricLime else SurfaceBorder, RoundedCornerShape(10.dp))
+                                                .clickable { viewModel.selectCryptoAsset(asset) }
+                                                .padding(vertical = 10.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(text = asset, color = if (isSelected) ElectricLime else TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                        }
+                                    }
+                                }
+
+                                Text(text = "External ${uiState.selectedCryptoAsset} Wallet Address", color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                                OutlinedTextField(
+                                    value = uiState.withdrawDestination,
+                                    onValueChange = { viewModel.updateWithdrawDestination(it) },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    placeholder = { Text("e.g. bc1q... or 0x...", color = TextMuted) },
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedContainerColor = BackgroundDark,
+                                        unfocusedContainerColor = BackgroundDark,
+                                        focusedBorderColor = ElectricLime,
+                                        unfocusedBorderColor = SurfaceBorder,
+                                        focusedTextColor = TextPrimary,
+                                        unfocusedTextColor = TextPrimary
+                                    ),
+                                    singleLine = true
+                                )
+                            }
+                        }
+                    }
                 }
 
                 // Amount & Percentage Shortcuts
@@ -205,7 +508,7 @@ fun WithdrawScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "WITHDRAWAL AMOUNT",
+                            text = "TEST WITHDRAWAL AMOUNT",
                             color = TextMuted,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
@@ -226,6 +529,7 @@ fun WithdrawScreen(
                         onValueChange = { viewModel.updateWithdrawAmount(it) },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(16.dp),
+                        placeholder = { Text("0.00", color = TextMuted) },
                         prefix = {
                             Text(
                                 text = "${uiState.selectedCurrency.symbol} ",
@@ -284,17 +588,16 @@ fun WithdrawScreen(
             val totalDeduction = withdrawAmt + feeAmt
 
             ConfirmationSheet(
-                title = "Confirm Withdrawal",
+                title = "Confirm TEST Withdrawal",
                 details = listOf(
-                    "Method" to uiState.selectedWithdrawMethod.title,
-                    "Destination" to uiState.withdrawDestination,
+                    "Mode" to "PAPER MONEY · No payout is sent",
                     "Withdrawal Amount" to Formatters.formatCurrency(withdrawAmt, uiState.selectedCurrency),
                     "Estimated Fee" to Formatters.formatCurrency(feeAmt, uiState.selectedCurrency),
                     "Total Deduction" to Formatters.formatCurrency(totalDeduction, uiState.selectedCurrency)
                 ),
-                confirmButtonText = "Authorize with Security PIN",
+                confirmButtonText = "Record TEST Withdrawal",
                 isLoading = uiState.isLoading,
-                onConfirm = { viewModel.openPinVerification() },
+                onConfirm = { viewModel.executeTestWithdrawal() },
                 onDismiss = { viewModel.closeWithdrawConfirmSheet() }
             )
         }
@@ -398,8 +701,8 @@ fun WithdrawScreen(
             ) {
                 if (tx != null) {
                     SuccessAnimation(
-                        title = "Withdrawal Executed!",
-                        subtitle = "Sent ${Formatters.formatCurrency(tx.amount, tx.currency)} via ${tx.title}. Ref: ${tx.id}",
+                        title = "TEST Withdrawal Recorded",
+                        subtitle = "Deducted ${Formatters.formatCurrency(tx.amount, tx.currency)} in PAPER MONEY. No payout was sent.",
                         onDoneClick = { viewModel.clearCompletedTransaction() }
                     )
                 }

@@ -35,7 +35,10 @@ fun AdminNavGraph(
     notificationsViewModel: AdminNotificationsViewModel = viewModel(),
     supportViewModel: AdminSupportViewModel = viewModel(),
     auditLogsViewModel: AdminAuditLogsViewModel = viewModel(),
-    systemStatusViewModel: AdminSystemStatusViewModel = viewModel()
+    systemStatusViewModel: AdminSystemStatusViewModel = viewModel(),
+    featureAccessViewModel: AdminFeatureAccessViewModel = viewModel(),
+    systemHealthViewModel: SystemHealthViewModel = viewModel(),
+    incidentViewModel: IncidentViewModel = viewModel()
 ) {
     val authUiState by authViewModel.uiState.collectAsState()
 
@@ -78,6 +81,9 @@ fun AdminNavGraph(
                         onNavigateToSupport = { navController.navigate(Screen.AdminSupport.route) },
                         onNavigateToAuditLogs = { navController.navigate(Screen.AdminAuditLogs.route) },
                         onNavigateToSystemStatus = { navController.navigate(Screen.AdminSystemStatus.route) },
+                        onNavigateToCompliance = { navController.navigate(Screen.AdminCompliance.route) },
+                        onNavigateToFeatureAccess = { navController.navigate(Screen.AdminFeatureAccess.route) },
+                        onNavigateToMonitoringDashboard = { navController.navigate(Screen.AdminMonitoringDashboard.route) },
                         onSignOutClick = onExitAdminPortal
                     )
                 }
@@ -156,6 +162,67 @@ fun AdminNavGraph(
                 composable(Screen.AdminSystemStatus.route) {
                     AdminSystemStatusScreen(
                         viewModel = systemStatusViewModel,
+                        onBackClick = { navController.popBackStack() }
+                    )
+                }
+
+                composable(Screen.AdminMonitoringDashboard.route) {
+                    MonitoringDashboardScreen(
+                        systemHealthViewModel = systemHealthViewModel,
+                        incidentViewModel = incidentViewModel,
+                        onNavigateToSystemHealth = { navController.navigate(Screen.AdminSystemHealth.route) },
+                        onNavigateToIncidentDetails = { incidentId ->
+                            navController.navigate(Screen.AdminIncidentDetails.createRoute(incidentId))
+                        },
+                        onBackClick = { navController.popBackStack() }
+                    )
+                }
+
+                composable(Screen.AdminSystemHealth.route) {
+                    SystemHealthScreen(
+                        viewModel = systemHealthViewModel,
+                        onBackClick = { navController.popBackStack() }
+                    )
+                }
+
+                composable(
+                    route = Screen.AdminIncidentDetails.route,
+                    arguments = listOf(navArgument("incidentId") { type = NavType.StringType })
+                ) { backStackEntry ->
+                    val incidentId = backStackEntry.arguments?.getString("incidentId") ?: ""
+                    IncidentDetailsScreen(
+                        incidentId = incidentId,
+                        viewModel = incidentViewModel,
+                        onBackClick = { navController.popBackStack() }
+                    )
+                }
+
+                composable(Screen.AdminCompliance.route) {
+                    AdminComplianceScreen(
+                        onBackClick = { navController.popBackStack() },
+                        onSelectReview = { userId ->
+                            navController.navigate("admin_kyc_review/$userId")
+                        }
+                    )
+                }
+
+                composable("admin_kyc_review/{userId}") { backStackEntry ->
+                    val userId = backStackEntry.arguments?.getString("userId") ?: "usr_9901"
+                    KycReviewScreen(
+                        userId = userId,
+                        onBackClick = { navController.popBackStack() }
+                    )
+                }
+
+                composable(Screen.AdminFeatureAccess.route) {
+                    AdminFeatureAccessScreen(
+                        viewModel = featureAccessViewModel,
+                        onBackClick = { navController.popBackStack() }
+                    )
+                }
+
+                composable(Screen.AdminResponsibleGaming.route) {
+                    AdminResponsibleGamingScreen(
                         onBackClick = { navController.popBackStack() }
                     )
                 }

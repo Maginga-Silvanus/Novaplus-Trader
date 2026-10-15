@@ -1,6 +1,7 @@
 package com.example.novaplustrader.ui.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
@@ -8,6 +9,11 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.example.novaplustrader.ui.screens.admin.AdminNavGraph
+import com.example.novaplustrader.ui.screens.auth.AuthViewModel
+import com.example.novaplustrader.ui.screens.auth.LoginScreen
+import com.example.novaplustrader.ui.screens.auth.RegisterScreen
+import com.example.novaplustrader.ui.screens.auth.SplashScreen
+import com.example.novaplustrader.ui.screens.auth.WelcomeScreen
 import com.example.novaplustrader.ui.screens.betting.BetDetailsScreen
 import com.example.novaplustrader.ui.screens.betting.BetSlipScreen
 import com.example.novaplustrader.ui.screens.betting.BettingScreen
@@ -43,7 +49,9 @@ import com.example.novaplustrader.ui.screens.support.SupportTicketsScreen
 import com.example.novaplustrader.ui.screens.support.SupportViewModel
 import com.example.novaplustrader.ui.screens.trading.TradingScreen
 import com.example.novaplustrader.ui.screens.trading.TradingViewModel
+import com.example.novaplustrader.ui.screens.trading.models.TradeDirection
 import com.example.novaplustrader.ui.screens.wallet.DepositScreen
+import com.example.novaplustrader.ui.screens.wallet.QrScannerScreen
 import com.example.novaplustrader.ui.screens.wallet.ReceiveMoneyScreen
 import com.example.novaplustrader.ui.screens.wallet.SendMoneyScreen
 import com.example.novaplustrader.ui.screens.wallet.TransactionDetailsScreen
@@ -56,6 +64,7 @@ import com.example.novaplustrader.ui.screens.wallet.WithdrawScreen
 fun NovaNavGraph(
     navController: NavHostController,
     modifier: Modifier = Modifier,
+    authViewModel: AuthViewModel = viewModel(),
     homeViewModel: HomeViewModel = viewModel(),
     tradingViewModel: TradingViewModel = viewModel(),
     tradingBotViewModel: TradingBotViewModel = viewModel(),
@@ -69,9 +78,66 @@ fun NovaNavGraph(
 ) {
     NavHost(
         navController = navController,
-        startDestination = Screen.Home.route,
+        startDestination = Screen.Splash.route,
         modifier = modifier
     ) {
+        composable(Screen.Splash.route) {
+            SplashScreen(
+                viewModel = authViewModel,
+                onNavigateToHome = {
+                    navController.navigate(Screen.Home.route) {
+                        popUpTo(Screen.Splash.route) { inclusive = true }
+                    }
+                },
+                onNavigateToWelcome = {
+                    navController.navigate(Screen.Welcome.route) {
+                        popUpTo(Screen.Splash.route) { inclusive = true }
+                    }
+                }
+            )
+        }
+
+        composable(Screen.Welcome.route) {
+            WelcomeScreen(
+                onNavigateToLogin = { navController.navigate(Screen.Login.route) },
+                onNavigateToRegister = { navController.navigate(Screen.Register.route) }
+            )
+        }
+
+        composable(Screen.Login.route) {
+            LoginScreen(
+                viewModel = authViewModel,
+                onLoginSuccess = {
+                    navController.navigate(Screen.Home.route) {
+                        popUpTo(Screen.Welcome.route) { inclusive = true }
+                    }
+                },
+                onNavigateToRegister = {
+                    navController.navigate(Screen.Register.route) {
+                        popUpTo(Screen.Login.route) { inclusive = true }
+                    }
+                },
+                onBackClick = { navController.popBackStack() }
+            )
+        }
+
+        composable(Screen.Register.route) {
+            RegisterScreen(
+                viewModel = authViewModel,
+                onRegisterSuccess = {
+                    navController.navigate(Screen.Home.route) {
+                        popUpTo(Screen.Welcome.route) { inclusive = true }
+                    }
+                },
+                onNavigateToLogin = {
+                    navController.navigate(Screen.Login.route) {
+                        popUpTo(Screen.Register.route) { inclusive = true }
+                    }
+                },
+                onBackClick = { navController.popBackStack() }
+            )
+        }
+
         composable(Screen.Home.route) {
             HomeScreen(
                 viewModel = homeViewModel,
@@ -82,7 +148,11 @@ fun NovaNavGraph(
                 onNavigateToSend = { navController.navigate(Screen.Send.route) },
                 onNavigateToReceive = { navController.navigate(Screen.Receive.route) },
                 onNavigateToScanQR = { navController.navigate(Screen.ScanQR.route) },
-                onNavigateToActivity = { navController.navigate(Screen.TransactionHistory.route) }
+                onNavigateToActivity = { navController.navigate(Screen.TransactionHistory.route) },
+                onNavigateToTrade = { navController.navigate(Screen.Trade.route) },
+                onNavigateToTradingBot = { navController.navigate(Screen.TradingBot.route) },
+                onNavigateToCasinoSpin = { navController.navigate(Screen.CasinoSpin.route) },
+                onNavigateToBetting = { navController.navigate(Screen.Betting.route) }
             )
         }
 
@@ -118,9 +188,17 @@ fun NovaNavGraph(
                 onNavigateToSettings = { navController.navigate(Screen.Settings.route) },
                 onNavigateToPrivacy = { navController.navigate(Screen.PrivacySettings.route) },
                 onNavigateToAdmin = { navController.navigate(Screen.AdminPortal.route) },
+                onNavigateToKyc = { navController.navigate(Screen.Kyc.route) },
+                onNavigateToResponsibleGaming = { navController.navigate(Screen.ResponsibleGaming.route) },
+                onNavigateToTrade = { navController.navigate(Screen.Trade.route) },
+                onNavigateToTradingBot = { navController.navigate(Screen.TradingBot.route) },
+                onNavigateToCasinoSpin = { navController.navigate(Screen.CasinoSpin.route) },
+                onNavigateToBetting = { navController.navigate(Screen.Betting.route) },
                 onLoggedOut = {
-                    navController.navigate(Screen.Home.route) {
-                        popUpTo(0) { inclusive = true }
+                    authViewModel.logout {
+                        navController.navigate(Screen.Welcome.route) {
+                            popUpTo(0) { inclusive = true }
+                        }
                     }
                 }
             )
@@ -257,11 +335,30 @@ fun NovaNavGraph(
         }
 
         composable(Screen.ScanQR.route) {
-            FeaturePlaceholderScreen(title = "QR Scanner")
+            QrScannerScreen(
+                viewModel = walletViewModel,
+                onBackClick = { navController.popBackStack() },
+                onScanComplete = {
+                    if (navController.previousBackStackEntry?.destination?.route == Screen.Send.route) {
+                        navController.popBackStack()
+                    } else {
+                        navController.navigate(Screen.Send.route) {
+                            popUpTo(Screen.ScanQR.route) { inclusive = true }
+                            launchSingleTop = true
+                        }
+                    }
+                }
+            )
         }
 
         composable(Screen.BuyCrypto.route) {
-            FeaturePlaceholderScreen(title = "Crypto Marketplace")
+            LaunchedEffect(Unit) {
+                tradingViewModel.selectDirection(TradeDirection.BUY)
+            }
+            TradingScreen(
+                viewModel = tradingViewModel,
+                onBackClick = { navController.popBackStack() }
+            )
         }
 
         composable(Screen.Trade.route) {

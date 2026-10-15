@@ -17,9 +17,9 @@ enum class DepositMethod(
     val feeText: String
 ) {
     MPESA(
-        title = "M-Pesa Express",
-        description = "Instant STK Push prompt to your mobile number",
-        feeText = "0% Fee"
+        title = "TEST wallet credit",
+        description = "Simulated balance only. No payment provider is contacted.",
+        feeText = "TEST ONLY"
     ),
     BANK(
         title = "Bank Wire Transfer",
@@ -44,14 +44,19 @@ enum class WithdrawMethod(
     val feeText: String
 ) {
     MPESA(
-        title = "M-Pesa Mobile",
-        description = "Withdraw directly to M-Pesa mobile wallet",
-        feeText = "KES 30 Fee"
+        title = "TEST wallet withdrawal",
+        description = "Simulated balance only. No payout is sent.",
+        feeText = "TEST ONLY"
     ),
     BANK(
         title = "Bank Account",
         description = "Wire payout to connected bank account",
         feeText = "$2.50 Fee"
+    ),
+    CARD(
+        title = "Debit / Credit Card",
+        description = "Payout directly to connected Visa or MasterCard",
+        feeText = "1.5% Fee"
     ),
     CRYPTO_WALLET(
         title = "External Crypto Wallet",

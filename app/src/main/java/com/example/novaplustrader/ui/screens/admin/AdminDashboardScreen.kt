@@ -21,9 +21,11 @@ import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.Assignment
 import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Analytics
+import androidx.compose.material.icons.filled.Badge
 import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.Receipt
 import androidx.compose.material.icons.filled.SmartToy
@@ -66,7 +68,10 @@ fun AdminDashboardScreen(
     onNavigateToAuditLogs: () -> Unit,
     onNavigateToSystemStatus: () -> Unit,
     onSignOutClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onNavigateToCompliance: () -> Unit = {},
+    onNavigateToFeatureAccess: () -> Unit = {},
+    onNavigateToMonitoringDashboard: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val m = uiState.metrics
@@ -168,6 +173,23 @@ fun AdminDashboardScreen(
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             AdminNavTile(
+                                title = "KYC & Compliance",
+                                icon = Icons.Default.Badge,
+                                onClick = onNavigateToCompliance,
+                                modifier = Modifier.weight(1f)
+                            )
+                            AdminNavTile(
+                                title = "Feature Gates",
+                                icon = Icons.Default.Lock,
+                                onClick = onNavigateToFeatureAccess,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            AdminNavTile(
                                 title = "User Directory",
                                 icon = Icons.Default.Group,
                                 onClick = onNavigateToUsers,
@@ -228,6 +250,23 @@ fun AdminDashboardScreen(
                                 title = "Audit Logs",
                                 icon = Icons.Default.History,
                                 onClick = onNavigateToAuditLogs,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            AdminNavTile(
+                                title = "Prod Monitoring",
+                                icon = Icons.Default.Analytics,
+                                onClick = onNavigateToMonitoringDashboard,
+                                modifier = Modifier.weight(1f)
+                            )
+                            AdminNavTile(
+                                title = "Subsystem Health",
+                                icon = Icons.Default.CloudDone,
+                                onClick = onNavigateToSystemStatus,
                                 modifier = Modifier.weight(1f)
                             )
                         }

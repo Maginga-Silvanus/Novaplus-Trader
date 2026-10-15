@@ -1,9 +1,15 @@
 package com.example.novaplustrader.ui.screens.wallet
 
+import android.Manifest
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,16 +20,21 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -42,6 +53,8 @@ import com.example.novaplustrader.ui.components.SuccessAnimation
 import com.example.novaplustrader.ui.model.Currency
 import com.example.novaplustrader.ui.theme.BackgroundDark
 import com.example.novaplustrader.ui.theme.ElectricLime
+import com.example.novaplustrader.ui.theme.ElectricLimeSurface
+import com.example.novaplustrader.ui.theme.FinancialGreen
 import com.example.novaplustrader.ui.theme.FinancialRed
 import com.example.novaplustrader.ui.theme.OverlayDark
 import com.example.novaplustrader.ui.theme.SurfaceBorder
@@ -59,6 +72,17 @@ fun SendMoneyScreen(
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsState()
+
+    // Request runtime notification permission on launch
+    val notifPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { _ -> }
+
+    LaunchedEffect(Unit) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            notifPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
 
     Box(
         modifier = modifier
@@ -101,16 +125,132 @@ fun SendMoneyScreen(
                 item {
                     QRActionCard(
                         title = "Scan QR to Pay",
-                        subtitle = "Scan recipient's NovaPay QR code",
+                        subtitle = "Scan recipient's NovaPay or Bitcoin QR code",
                         onScanClick = onScanQRClick
                     )
                 }
 
-                // Recipient Wallet ID / Email
+                // Send Lookup Method Choice
                 item {
-                    Spacer(modifier = Modifier.height(20.dp))
+                    Spacer(modifier = Modifier.height(18.dp))
                     Text(
-                        text = "RECIPIENT WALLET ID OR EMAIL",
+                        text = "FIND RECIPIENT BY",
+                        color = TextMuted,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.sp
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    val lookupMethods = listOf(
+                        "EMAIL" to "Email Address",
+                        "WALLET_CODE" to "Wallet / BTC Code",
+                        "PHONE_KYC" to "KYC Phone No."
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        lookupMethods.forEach { (code, label) ->
+                            val isSelected = code == uiState.sendLookupMethod
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(if (isSelected) ElectricLimeSurface else SurfaceDarkCard)
+                                    .border(1.dp, if (isSelected) ElectricLime else SurfaceBorder, RoundedCornerShape(12.dp))
+                                    .clickable { viewModel.selectSendLookupMethod(code) }
+                                    .padding(vertical = 10.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = label,
+                                    color = if (isSelected) ElectricLime else TextPrimary,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Recipient Wallet Target Choice
+                item {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "TARGET RECIPIENT WALLET",
+                        color = TextMuted,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.sp
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        val isUserWallet = uiState.recipientWalletType == "USER_WALLET"
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(if (isUserWallet) ElectricLimeSurface else SurfaceDarkCard)
+                                .border(1.dp, if (isUserWallet) ElectricLime else SurfaceBorder, RoundedCornerShape(12.dp))
+                                .clickable { viewModel.selectRecipientWalletType("USER_WALLET") }
+                                .padding(vertical = 12.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "User Main Wallet",
+                                color = if (isUserWallet) ElectricLime else TextPrimary,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+
+                        val isBtcWallet = uiState.recipientWalletType == "BITCOIN_WALLET"
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(if (isBtcWallet) ElectricLimeSurface else SurfaceDarkCard)
+                                .border(1.dp, if (isBtcWallet) ElectricLime else SurfaceBorder, RoundedCornerShape(12.dp))
+                                .clickable { viewModel.selectRecipientWalletType("BITCOIN_WALLET") }
+                                .padding(vertical = 12.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "Crypto / BTC Wallet",
+                                color = if (isBtcWallet) ElectricLime else TextPrimary,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+
+                // Recipient Input
+                item {
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    val hintText = when (uiState.sendLookupMethod) {
+                        "EMAIL" -> "e.g. maria.wanjiku@novapay.io"
+                        "WALLET_CODE" -> "e.g. #NV-92842 or bc1q9x..."
+                        else -> "e.g. +254712345678"
+                    }
+
+                    val labelText = when (uiState.sendLookupMethod) {
+                        "EMAIL" -> "RECIPIENT EMAIL ADDRESS"
+                        "WALLET_CODE" -> "RECIPIENT WALLET CODE OR BITCOIN ADDRESS"
+                        else -> "RECIPIENT KYC PHONE NUMBER"
+                    }
+
+                    Text(
+                        text = labelText,
                         color = TextMuted,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
@@ -124,7 +264,7 @@ fun SendMoneyScreen(
                         onValueChange = { viewModel.updateRecipientId(it) },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(16.dp),
-                        placeholder = { Text("e.g. maria@novapay.io or #NV-92842", color = TextMuted) },
+                        placeholder = { Text(hintText, color = TextMuted) },
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedContainerColor = SurfaceDarkCard,
                             unfocusedContainerColor = SurfaceDarkCard,
@@ -135,6 +275,32 @@ fun SendMoneyScreen(
                         ),
                         singleLine = true
                     )
+
+                    if (uiState.recipientId.isNotBlank()) {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            modifier = Modifier.padding(start = 4.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.CheckCircle,
+                                contentDescription = "Verified",
+                                tint = FinancialGreen,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Text(
+                                text = if (uiState.recipientName.isBlank()) {
+                                    "Recipient: ${uiState.recipientId}"
+                                } else {
+                                    "Recipient: ${uiState.recipientName} (${uiState.recipientId})"
+                                },
+                                color = FinancialGreen,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
                 }
 
                 // Send Amount
@@ -170,6 +336,7 @@ fun SendMoneyScreen(
                         onValueChange = { viewModel.updateSendAmount(it) },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(16.dp),
+                        placeholder = { Text("0.00", color = TextMuted) },
                         prefix = {
                             Text(
                                 text = "${uiState.selectedCurrency.symbol} ",
@@ -253,6 +420,7 @@ fun SendMoneyScreen(
                 title = "Confirm Peer Transfer",
                 details = listOf(
                     "Recipient" to uiState.recipientId,
+                    "Target Wallet" to if (uiState.recipientWalletType == "USER_WALLET") "User Main Wallet" else "Crypto / BTC Wallet",
                     "Transfer Amount" to Formatters.formatCurrency(sendAmt, uiState.selectedCurrency),
                     "Transfer Fee" to "Free (0%)",
                     "Note" to if (uiState.sendNote.isBlank()) "None" else uiState.sendNote

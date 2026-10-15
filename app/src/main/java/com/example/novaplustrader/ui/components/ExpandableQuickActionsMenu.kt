@@ -18,14 +18,16 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ShowChart
+import androidx.compose.material.icons.filled.Android
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.Casino
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CurrencyBitcoin
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Send
-import androidx.compose.material.icons.filled.ShowChart
-import androidx.compose.material3.Icon
+import androidx.compose.material.icons.filled.SportsSoccer
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -38,7 +40,6 @@ import com.example.novaplustrader.ui.theme.ElectricLime
 import com.example.novaplustrader.ui.theme.OverlayDark
 import com.example.novaplustrader.ui.theme.SurfaceDarkElevated
 import com.example.novaplustrader.ui.theme.TextMuted
-import com.example.novaplustrader.ui.theme.TextPrimary
 
 @Composable
 fun ExpandableQuickActionsMenu(
@@ -50,6 +51,9 @@ fun ExpandableQuickActionsMenu(
     onScanQRClick: () -> Unit,
     onBuyCryptoClick: () -> Unit,
     onTradeClick: () -> Unit,
+    onTradingBotClick: () -> Unit = {},
+    onCasinoSpinClick: () -> Unit = {},
+    onBettingClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     if (isVisible) {
@@ -92,7 +96,7 @@ fun ExpandableQuickActionsMenu(
                                     letterSpacing = 1.sp
                                 )
                                 Text(
-                                    text = "Choose an operation",
+                                    text = "Choose an operation or mode",
                                     color = TextMuted,
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.Normal
@@ -106,7 +110,7 @@ fun ExpandableQuickActionsMenu(
                             )
                         }
 
-                        Spacer(modifier = Modifier.height(24.dp))
+                        Spacer(modifier = Modifier.height(20.dp))
 
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -138,12 +142,20 @@ fun ExpandableQuickActionsMenu(
                             )
                         }
 
-                        Spacer(modifier = Modifier.height(20.dp))
+                        Spacer(modifier = Modifier.height(16.dp))
 
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceEvenly
                         ) {
+                            QuickActionButton(
+                                label = "Trade",
+                                icon = Icons.AutoMirrored.Filled.ShowChart,
+                                onClick = {
+                                    onDismiss()
+                                    onTradeClick()
+                                }
+                            )
                             QuickActionButton(
                                 label = "Scan QR",
                                 icon = Icons.Default.QrCodeScanner,
@@ -160,12 +172,36 @@ fun ExpandableQuickActionsMenu(
                                     onBuyCryptoClick()
                                 }
                             )
+                        }
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceEvenly
+                        ) {
                             QuickActionButton(
-                                label = "Trade",
-                                icon = Icons.Default.ShowChart,
+                                label = "Bot Engine",
+                                icon = Icons.Default.Android,
                                 onClick = {
                                     onDismiss()
-                                    onTradeClick()
+                                    onTradingBotClick()
+                                }
+                            )
+                            QuickActionButton(
+                                label = "Casino Spin",
+                                icon = Icons.Default.Casino,
+                                onClick = {
+                                    onDismiss()
+                                    onCasinoSpinClick()
+                                }
+                            )
+                            QuickActionButton(
+                                label = "Sportsbook",
+                                icon = Icons.Default.SportsSoccer,
+                                onClick = {
+                                    onDismiss()
+                                    onBettingClick()
                                 }
                             )
                         }

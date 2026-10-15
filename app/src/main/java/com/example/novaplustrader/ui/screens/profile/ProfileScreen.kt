@@ -15,11 +15,17 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ShowChart
 import androidx.compose.material.icons.filled.AdminPanelSettings
+import androidx.compose.material.icons.filled.Android
+import androidx.compose.material.icons.filled.Badge
+import androidx.compose.material.icons.filled.Casino
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.PrivacyTip
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.SportsSoccer
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -54,7 +60,13 @@ fun ProfileScreen(
     onNavigateToPrivacy: () -> Unit,
     onLoggedOut: () -> Unit,
     modifier: Modifier = Modifier,
-    onNavigateToAdmin: () -> Unit = {}
+    onNavigateToAdmin: () -> Unit = {},
+    onNavigateToKyc: () -> Unit = {},
+    onNavigateToResponsibleGaming: () -> Unit = {},
+    onNavigateToTrade: () -> Unit = {},
+    onNavigateToTradingBot: () -> Unit = {},
+    onNavigateToCasinoSpin: () -> Unit = {},
+    onNavigateToBetting: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val p = uiState.profile
@@ -142,6 +154,51 @@ fun ProfileScreen(
                     }
                 }
 
+                // Featured Modes Section
+                item {
+                    Spacer(modifier = Modifier.height(20.dp))
+                    Text(
+                        text = "FEATURED MODES & ENTERTAINMENT",
+                        color = TextMuted,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.sp,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        ProfileMenuItem(
+                            title = "Binary Options Trading",
+                            subtitle = "Live price options trading with real-time charts",
+                            icon = Icons.AutoMirrored.Filled.ShowChart,
+                            onClick = onNavigateToTrade
+                        )
+
+                        ProfileMenuItem(
+                            title = "Trading Bot Engine",
+                            subtitle = "Automated algorithmic trading strategy execution",
+                            icon = Icons.Default.Android,
+                            onClick = onNavigateToTradingBot
+                        )
+
+                        ProfileMenuItem(
+                            title = "Casino Spin Demo",
+                            subtitle = "Minigame wheel spin using Demo Credits",
+                            icon = Icons.Default.Casino,
+                            onClick = onNavigateToCasinoSpin
+                        )
+
+                        ProfileMenuItem(
+                            title = "Sportsbook Demo",
+                            subtitle = "Sports odds & bet slips with Demo Credits",
+                            icon = Icons.Default.SportsSoccer,
+                            onClick = onNavigateToBetting
+                        )
+                    }
+                }
+
                 // Menu Items Section
                 item {
                     Spacer(modifier = Modifier.height(20.dp))
@@ -157,6 +214,20 @@ fun ProfileScreen(
                     Spacer(modifier = Modifier.height(6.dp))
 
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        ProfileMenuItem(
+                            title = "Identity & KYC Verification",
+                            subtitle = "Government ID, liveness verification, and compliance status",
+                            icon = Icons.Default.Badge,
+                            onClick = onNavigateToKyc
+                        )
+
+                        ProfileMenuItem(
+                            title = "Responsible Use & Controls",
+                            subtitle = "Self-exclusion, session limits, and reality check timers",
+                            icon = Icons.Default.Shield,
+                            onClick = onNavigateToResponsibleGaming
+                        )
+
                         ProfileMenuItem(
                             title = "Admin & Operations Portal",
                             subtitle = "Privileged control center for authorized operators",

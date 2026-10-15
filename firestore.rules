@@ -1,0 +1,98 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedInAs(userId) {
+      return request.auth != null && request.auth.uid == userId;
+    }
+
+    function validBotSettings() {
+      return request.resource.data.keys().hasOnly([
+          'strategy',
+          'timeframe',
+          'indicators',
+          'riskLimitBps',
+          'tradeSizeMinorUnits',
+          'stopLossBps',
+          'takeProfitBps',
+          'updatedAt'
+        ])
+        && request.resource.data.keys().hasAll([
+          'strategy',
+          'timeframe',
+          'indicators',
+          'riskLimitBps',
+          'tradeSizeMinorUnits',
+          'stopLossBps',
+          'takeProfitBps',
+          'updatedAt'
+        ])
+        && request.resource.data.strategy in ['trend-following', 'range-grid', 'momentum']
+        && request.resource.data.timeframe in ['1m', '5m', '15m', '1h', '4h', '1d']
+        && request.resource.data.indicators is list
+        && request.resource.data.indicators.size() <= 10
+        && request.resource.data.indicators.hasOnly(['sma', 'ema', 'rsi', 'macd', 'bollinger'])
+        && request.resource.data.riskLimitBps is int
+        && request.resource.data.riskLimitBps >= 1
+        && request.resource.data.riskLimitBps <= 10000
+        && request.resource.data.tradeSizeMinorUnits is int
+        && request.resource.data.tradeSizeMinorUnits > 0
+        && request.resource.data.tradeSizeMinorUnits <= 100000000
+        && request.resource.data.stopLossBps is int
+        && request.resource.data.stopLossBps >= 0
+        && request.resource.data.stopLossBps <= 10000
+        && request.resource.data.takeProfitBps is int
+        && request.resource.data.takeProfitBps >= 0
+        && request.resource.data.takeProfitBps <= 10000
+        && request.resource.data.updatedAt == request.time;
+    }
+
+    match /users/{userId}/wallets/main {
+      allow get, list: if signedInAs(userId);
+      allow create, update, delete: if false;
+
+      match /transactions/{transactionId} {
+        allow get, list: if signedInAs(userId);
+        allow create, update, delete: if false;
+      }
+    }
+
+    match /users/{userId}/cryptoWallets/spot {
+      allow get, list: if signedInAs(userId);
+      allow create, update, delete: if false;
+
+      match /holdings/{assetId} {
+        allow get, list: if signedInAs(userId);
+        allow create, update, delete: if false;
+      }
+
+      match /transactions/{transactionId} {
+        allow get, list: if signedInAs(userId);
+        allow create, update, delete: if false;
+      }
+    }
+
+    match /users/{userId}/tradeRequests/{requestId} {
+      allow get, list: if signedInAs(userId);
+      allow create, update, delete: if false;
+    }
+
+    match /users/{userId}/walletOperations/{operationId} {
+      allow get, list: if signedInAs(userId);
+      allow create, update, delete: if false;
+    }
+
+    match /users/{userId}/botSettings/{settingId} {
+      allow get, list: if signedInAs(userId);
+      allow create, update: if signedInAs(userId) && validBotSettings();
+      allow delete: if signedInAs(userId);
+    }
+
+    match /users/{userId}/botCommands/{commandId} {
+      allow read, write: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

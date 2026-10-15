@@ -1,124 +1,141 @@
 package com.example.novaplustrader.data.repository
 
+import com.example.novaplustrader.data.remote.BotExecutionService
+import com.example.novaplustrader.data.remote.BotExecutionServiceImpl
+import com.example.novaplustrader.domain.model.bot.BotActivityLogModel
+import com.example.novaplustrader.domain.model.bot.BotPerformanceModel
+import com.example.novaplustrader.domain.model.bot.BotSessionHistoryModel
+import com.example.novaplustrader.domain.model.bot.TradingBotModel
+import com.example.novaplustrader.domain.model.bot.TradingBotStatus
 import com.example.novaplustrader.ui.screens.bot.models.BotActiveTrade
 import com.example.novaplustrader.ui.screens.bot.models.BotActivityEvent
 import com.example.novaplustrader.ui.screens.bot.models.BotConfiguration
 import com.example.novaplustrader.ui.screens.bot.models.BotPerformance
 import com.example.novaplustrader.ui.screens.bot.models.BotStatus
+import com.example.novaplustrader.ui.screens.notifications.models.NotificationCategory
+import com.example.novaplustrader.ui.screens.notifications.models.NotificationModel
 import com.example.novaplustrader.ui.screens.trading.models.TradeDirection
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
+import kotlinx.coroutines.launch
+import java.util.UUID
 
-class TradingBotRepositoryImpl : TradingBotRepository {
+class TradingBotRepositoryImpl(
+    private val executionService: BotExecutionService = BotExecutionServiceImpl(),
+    private val notificationRepository: NotificationRepository = NotificationRepositoryImpl()
+) : TradingBotRepository {
 
-    private val _botStatus = MutableStateFlow(BotStatus.OFF)
-    private val _botConfiguration = MutableStateFlow(BotConfiguration())
-    private val _botPerformance = MutableStateFlow(BotPerformance())
-    private val _activeTrades = MutableStateFlow<List<BotActiveTrade>>(emptyList())
-    private val _historyEvents = MutableStateFlow<List<BotActivityEvent>>(
+    private val scope = CoroutineScope(Dispatchers.Default)
+
+    private val _botModel = MutableStateFlow(TradingBotModel())
+    private val _legacyStatus = MutableStateFlow(BotStatus.OFF)
+    private val _legacyConfig = MutableStateFlow(BotConfiguration())
+    private val _legacyPerf = MutableStateFlow(BotPerformance())
+    private val _legacyHistory = MutableStateFlow<List<BotActivityEvent>>(emptyList())
+    private val _legacyActiveTrades = MutableStateFlow<List<BotActiveTrade>>(
         listOf(
-            BotActivityEvent(
-                id = "e1",
-                eventType = "SYSTEM",
-                description = "Nova Bot initialization completed",
-                timestamp = getCurrentTime(),
-                status = "COMPLETED"
+            BotActiveTrade(
+                id = "trd_bot_01",
+                assetSymbol = "BTC/USDT",
+                direction = TradeDirection.BUY,
+                entryPrice = 88400.00,
+                currentPrice = 88450.00,
+                amount = 100.00,
+                profitLoss = 12.50,
+                status = "ACTIVE"
             )
         )
     )
 
-    override fun observeBotStatus(): StateFlow<BotStatus> = _botStatus.asStateFlow()
-    override fun observeBotConfiguration(): StateFlow<BotConfiguration> = _botConfiguration.asStateFlow()
-    override fun observeActiveTrades(): StateFlow<List<BotActiveTrade>> = _activeTrades.asStateFlow()
-    override fun observeBotPerformance(): StateFlow<BotPerformance> = _botPerformance.asStateFlow()
-    override fun observeBotHistory(): StateFlow<List<BotActivityEvent>> = _historyEvents.asStateFlow()
+    init {
+        scope.launch {
+            executionService.observeBot("bot_primary_01").collect { bot ->
+                _botModel.value = bot
+                _legacyStatus.value = when (bot.status) {
+                    TradingBotStatus.RUNNING -> BotStatus.ACTIVE
+                    TradingBotStatus.STARTING, TradingBotStatus.START_REQUESTED -> BotStatus.STARTING
+                    TradingBotStatus.STOPPING, TradingBotStatus.STOP_REQUESTED -> BotStatus.PAUSING
+                    TradingBotStatus.ERROR -> BotStatus.ERROR
+                    else -> BotStatus.OFF
+                }
+            }
+        }
+    }
+
+    override fun observeBot(): StateFlow<TradingBotModel> = _botModel.asStateFlow()
+    override fun observeActivityLogs(): Flow<List<BotActivityLogModel>> = executionService.observeActivityLogs("bot_primary_01")
+    override fun observePerformance(): Flow<BotPerformanceModel> = executionService.observePerformance("bot_primary_01")
+    override fun observeSessionHistory(): Flow<List<BotSessionHistoryModel>> = executionService.observeSessionHistory("bot_primary_01")
+
+    override fun observeBotStatus(): StateFlow<BotStatus> = _legacyStatus.asStateFlow()
+    override fun observeBotConfiguration(): StateFlow<BotConfiguration> = _legacyConfig.asStateFlow()
+    override fun observeActiveTrades(): StateFlow<List<BotActiveTrade>> = _legacyActiveTrades.asStateFlow()
+    override fun observeBotPerformance(): StateFlow<BotPerformance> = _legacyPerf.asStateFlow()
+    override fun observeBotHistory(): StateFlow<List<BotActivityEvent>> = _legacyHistory.asStateFlow()
 
     override fun updateConfiguration(configuration: BotConfiguration) {
-        _botConfiguration.value = configuration
+        _legacyConfig.value = configuration
     }
 
     override suspend fun startBot(securityPinVerified: Boolean): Result<Boolean> {
-        if (!securityPinVerified) {
-            return Result.failure(SecurityException("Security verification required to activate trading bot"))
-        }
-
-        _botStatus.value = BotStatus.STARTING
-        delay(800) // Simulate backend validation & engine connection
-
-        _botStatus.value = BotStatus.ACTIVE
-
-        val newEvent = BotActivityEvent(
-            id = "e_${System.currentTimeMillis()}",
-            eventType = "START",
-            description = "Nova Bot started with ${_botConfiguration.value.strategy.title} strategy on ${_botConfiguration.value.asset.symbol}",
-            timestamp = getCurrentTime(),
-            status = "ACTIVE"
-        )
-        _historyEvents.update { listOf(newEvent) + it }
-
-        // Populate sample mock active trades for UI visualization
-        _activeTrades.value = listOf(
-            BotActiveTrade(
-                id = "bt1",
-                assetSymbol = _botConfiguration.value.asset.symbol,
-                direction = TradeDirection.BUY,
-                entryPrice = _botConfiguration.value.asset.currentPrice - 120.0,
-                currentPrice = _botConfiguration.value.asset.currentPrice,
-                amount = _botConfiguration.value.allocatedAmount * 0.4,
-                profitLoss = 1.34,
-                status = "ACTIVE"
-            )
-        )
-
-        return Result.success(true)
+        val key = "idemp_bot_start_${UUID.randomUUID().toString().take(8)}"
+        val result = requestStartBot(key, null)
+        return result.map { true }
     }
 
     override suspend fun stopBot(): Result<Boolean> {
-        _botStatus.value = BotStatus.STOPPED
-        delay(600)
-
-        val newEvent = BotActivityEvent(
-            id = "e_${System.currentTimeMillis()}",
-            eventType = "STOP",
-            description = "Nova Bot stopped by user",
-            timestamp = getCurrentTime(),
-            status = "STOPPED"
-        )
-        _historyEvents.update { listOf(newEvent) + it }
-        _activeTrades.value = emptyList()
-        _botStatus.value = BotStatus.OFF
-
-        return Result.success(true)
+        val key = "idemp_bot_stop_${UUID.randomUUID().toString().take(8)}"
+        val result = requestStopBot(key)
+        return result.map { true }
     }
 
     override suspend fun pauseBot(): Result<Boolean> {
-        _botStatus.value = BotStatus.PAUSING
-        delay(500)
-        _botStatus.value = BotStatus.OFF
-
-        val newEvent = BotActivityEvent(
-            id = "e_${System.currentTimeMillis()}",
-            eventType = "PAUSE",
-            description = "Nova Bot paused",
-            timestamp = getCurrentTime(),
-            status = "PAUSED"
-        )
-        _historyEvents.update { listOf(newEvent) + it }
-        return Result.success(true)
+        return stopBot()
     }
 
     override suspend fun resumeBot(): Result<Boolean> {
-        return startBot(securityPinVerified = true)
+        return startBot(true)
     }
 
-    private fun getCurrentTime(): String {
-        val sdf = SimpleDateFormat("HH:mm:ss", Locale.US)
-        return sdf.format(Date())
+    override suspend fun requestStartBot(
+        idempotencyKey: String,
+        securityPin: String?
+    ): Result<TradingBotModel> {
+        val result = executionService.requestStartBot("bot_primary_01", idempotencyKey, securityPin)
+        result.onSuccess {
+            // Dispatch notification via notification repository
+            notificationRepository.saveNotification(
+                NotificationModel(
+                    id = "notif_bot_start_${System.currentTimeMillis()}",
+                    title = "Trading Bot Started",
+                    body = "Nova Momentum Alpha is now active and monitoring market signals.",
+                    category = NotificationCategory.BOT,
+                    timestamp = "Just now",
+                    deepLink = "trading_bot"
+                )
+            )
+        }
+        return result
+    }
+
+    override suspend fun requestStopBot(idempotencyKey: String): Result<TradingBotModel> {
+        val result = executionService.requestStopBot("bot_primary_01", idempotencyKey)
+        result.onSuccess {
+            notificationRepository.saveNotification(
+                NotificationModel(
+                    id = "notif_bot_stop_${System.currentTimeMillis()}",
+                    title = "Trading Bot Stopped",
+                    body = "Nova Momentum Alpha has been stopped by user command.",
+                    category = NotificationCategory.BOT,
+                    timestamp = "Just now",
+                    deepLink = "trading_bot"
+                )
+            )
+        }
+        return result
     }
 }
