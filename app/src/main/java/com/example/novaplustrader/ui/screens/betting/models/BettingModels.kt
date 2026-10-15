@@ -3,7 +3,11 @@ package com.example.novaplustrader.ui.screens.betting.models
 enum class EventStatus(val label: String) {
     UPCOMING("Upcoming"),
     LIVE("LIVE"),
-    FINISHED("Finished")
+    HALFTIME("Halftime"),
+    FINISHED("Finished"),
+    POSTPONED("Postponed"),
+    CANCELLED("Cancelled"),
+    ABANDONED("Abandoned")
 }
 
 enum class BetStatus(val label: String) {

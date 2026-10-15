@@ -31,6 +31,8 @@ import com.example.novaplustrader.ui.screens.legal.LegalInformationScreen
 import com.example.novaplustrader.ui.screens.legal.RiskDisclosureScreen
 import com.example.novaplustrader.ui.screens.notifications.NotificationCenterScreen
 import com.example.novaplustrader.ui.screens.notifications.NotificationViewModel
+import com.example.novaplustrader.ui.screens.markets.MarketsScreen
+import com.example.novaplustrader.ui.screens.wallet.CryptoWalletScreen
 import com.example.novaplustrader.ui.screens.placeholder.FeaturePlaceholderScreen
 import com.example.novaplustrader.ui.screens.profile.EditProfileScreen
 import com.example.novaplustrader.ui.screens.profile.ProfileScreen
@@ -169,7 +171,10 @@ fun NovaNavGraph(
         }
 
         composable(Screen.Markets.route) {
-            FeaturePlaceholderScreen(title = "Markets Overview")
+            MarketsScreen(
+                tradingViewModel = tradingViewModel,
+                onNavigateToTrade = { navController.navigate(Screen.Trade.route) }
+            )
         }
 
         composable(Screen.Activity.route) {
@@ -352,12 +357,9 @@ fun NovaNavGraph(
         }
 
         composable(Screen.BuyCrypto.route) {
-            LaunchedEffect(Unit) {
-                tradingViewModel.selectDirection(TradeDirection.BUY)
-            }
-            TradingScreen(
-                viewModel = tradingViewModel,
-                onBackClick = { navController.popBackStack() }
+            CryptoWalletScreen(
+                onBackClick = { navController.popBackStack() },
+                onNavigateToTrade = { navController.navigate(Screen.Trade.route) }
             )
         }
 

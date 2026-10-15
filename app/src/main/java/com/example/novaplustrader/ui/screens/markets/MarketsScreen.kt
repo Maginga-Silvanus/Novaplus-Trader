@@ -188,7 +188,9 @@ fun MarketsScreen(
                         MarketRanking.HOT -> "HOT · largest absolute 24h moves in supported pairs"
                         MarketRanking.GAINERS -> "GAINERS · 24h price change"
                         MarketRanking.LOSERS -> "LOSERS · 24h price change"
+                        MarketRanking.NEW_LISTINGS -> "NEW LISTINGS · recently added spot assets"
                         MarketRanking.VOLUME -> "24H QUOTE VOLUME · USDT"
+                        MarketRanking.MARKET_CAP -> "MARKET CAPITALIZATION · global ranking"
                     },
                     color = TextMuted,
                     fontSize = 10.sp,

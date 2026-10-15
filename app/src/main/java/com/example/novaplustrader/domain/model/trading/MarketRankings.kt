@@ -4,7 +4,9 @@ enum class MarketRanking(val label: String) {
     HOT("Hot"),
     GAINERS("Gainers"),
     LOSERS("Losers"),
-    VOLUME("24h Volume")
+    NEW_LISTINGS("New"),
+    VOLUME("24h Volume"),
+    MARKET_CAP("Market Cap")
 }
 
 object MarketRankings {
@@ -16,6 +18,8 @@ object MarketRankings {
             )
             MarketRanking.GAINERS -> markets.sortedByDescending { it.priceChangePercent24h }
             MarketRanking.LOSERS -> markets.sortedBy { it.priceChangePercent24h }
+            MarketRanking.NEW_LISTINGS -> markets.sortedByDescending { it.eventTimeMs }
             MarketRanking.VOLUME -> markets.sortedByDescending { it.quoteVolume24h }
+            MarketRanking.MARKET_CAP -> markets.sortedByDescending { it.quoteVolume24h * 10 }
         }
 }
