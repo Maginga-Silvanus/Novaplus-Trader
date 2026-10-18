@@ -12,6 +12,7 @@ enum class KycStatus(val label: String) {
 }
 
 enum class RiskStatus(val label: String) {
+    UNKNOWN("Risk Status Unavailable"),
     NORMAL("Normal Account"),
     REVIEW_REQUIRED("Pending Risk Review"),
     RESTRICTED("Account Restricted"),
@@ -35,7 +36,7 @@ data class KycRequirement(
 )
 
 data class KycVerificationRequest(
-    val userId: String = "usr_9901",
+    val userId: String = "",
     val fullName: String,
     val dateOfBirth: String,
     val documentType: DocumentType,

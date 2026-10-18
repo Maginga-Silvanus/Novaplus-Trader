@@ -34,6 +34,11 @@ test("users can read only their own main wallet, crypto holdings, transactions a
       status: "COMPLETED_TEST",
       testOnly: true,
     });
+    await setDoc(doc(context.firestore(), "users/alice/financialRequests/deposit-request-001"), {
+      type: "DEPOSIT",
+      status: "PENDING",
+      amountMinorUnits: 1000,
+    });
     await setDoc(doc(context.firestore(), "users/alice/walletOperations/deposit-001"), {
       operation: "DEPOSIT",
       status: "COMPLETED_TEST",
@@ -59,6 +64,8 @@ test("users can read only their own main wallet, crypto holdings, transactions a
   await assertFails(getDoc(doc(bob, "users/alice/wallets/main")));
   await assertSucceeds(getDoc(doc(alice, "users/alice/wallets/main/transactions/deposit-001")));
   await assertFails(getDoc(doc(bob, "users/alice/wallets/main/transactions/deposit-001")));
+  await assertSucceeds(getDoc(doc(alice, "users/alice/financialRequests/deposit-request-001")));
+  await assertFails(getDoc(doc(bob, "users/alice/financialRequests/deposit-request-001")));
   await assertSucceeds(getDoc(doc(alice, "users/alice/walletOperations/deposit-001")));
   await assertFails(getDoc(doc(bob, "users/alice/walletOperations/deposit-001")));
   await assertSucceeds(getDoc(doc(alice, "users/alice/cryptoWallets/spot")));
@@ -71,7 +78,74 @@ test("users can read only their own main wallet, crypto holdings, transactions a
   await assertFails(getDoc(doc(bob, "users/alice/tradeRequests/request-001")));
 });
 
-test("clients cannot write either wallet, holdings, transactions or trade requests", async () => {
+test("admin reads require a valid Firebase adminRole claim, never a user document field", async () => {
+  await environment.withSecurityRulesDisabled(async (context) => {
+    await setDoc(doc(context.firestore(), "users/alice"), {
+      uid: "alice",
+      fullName: "Alice",
+      role: "SUPER_ADMIN",
+    });
+    await setDoc(doc(context.firestore(), "users/alice/wallets/main"), {
+      usdBalanceMinorUnits: 2500,
+      kesBalanceMinorUnits: 0,
+      mode: "testing",
+    });
+    await setDoc(doc(context.firestore(), "users/alice/supportTickets/ticket-1"), {
+      subject: "Help",
+      status: "OPEN",
+    });
+    await setDoc(doc(context.firestore(), "users/alice/kycSubmissions/submission-1"), {
+      status: "PENDING",
+    });
+  });
+
+  const admin = environment.authenticatedContext("admin-operator", {
+    adminRole: "ADMIN",
+  }).firestore();
+  const support = environment.authenticatedContext("support-operator", {
+    adminRole: "SUPPORT",
+  }).firestore();
+  const operations = environment.authenticatedContext("operations-operator", {
+    adminRole: "OPERATIONS",
+  }).firestore();
+  const compliance = environment.authenticatedContext("compliance-operator", {
+    adminRole: "COMPLIANCE",
+  }).firestore();
+  const readOnly = environment.authenticatedContext("read-only-operator", {
+    adminRole: "READ_ONLY",
+  }).firestore();
+  const ordinaryUserWithForgedField = environment.authenticatedContext("mallory", {
+    role: "SUPER_ADMIN",
+  }).firestore();
+  const invalidClaim = environment.authenticatedContext("invalid-operator", {
+    adminRole: "ROOT",
+  }).firestore();
+  const noClaim = environment.authenticatedContext("unprovisioned-operator").firestore();
+
+  await assertSucceeds(getDoc(doc(admin, "users/alice")));
+  await assertSucceeds(getDoc(doc(admin, "users/alice/wallets/main")));
+  await assertSucceeds(getDoc(doc(admin, "systemHealth/current")));
+  await assertSucceeds(getDoc(doc(support, "users/alice/supportTickets/ticket-1")));
+  await assertFails(getDoc(doc(support, "users/alice/wallets/main")));
+  await assertFails(getDoc(doc(support, "users/alice")));
+  await assertSucceeds(getDoc(doc(operations, "users/alice/wallets/main")));
+  await assertFails(getDoc(doc(operations, "users/alice/supportTickets/ticket-1")));
+  await assertFails(getDoc(doc(operations, "users/alice")));
+  await assertSucceeds(getDoc(doc(compliance, "users/alice/kycSubmissions/submission-1")));
+  await assertFails(getDoc(doc(compliance, "users/alice/wallets/main")));
+  await assertSucceeds(getDoc(doc(readOnly, "users/alice/wallets/main")));
+  await assertSucceeds(getDoc(doc(readOnly, "users/alice")));
+  await assertFails(getDoc(doc(ordinaryUserWithForgedField, "users/alice/wallets/main")));
+  await assertFails(getDoc(doc(invalidClaim, "users/alice/wallets/main")));
+  await assertFails(getDoc(doc(noClaim, "users/alice/wallets/main")));
+  await assertFails(setDoc(doc(ordinaryUserWithForgedField, "users/mallory"), {
+    uid: "mallory",
+    fullName: "Mallory",
+    adminRole: "SUPER_ADMIN",
+  }));
+});
+
+test("clients cannot write authoritative wallets, holdings, transactions or financial requests", async () => {
   const alice = environment.authenticatedContext("alice").firestore();
   await environment.withSecurityRulesDisabled(async (context) => {
     await setDoc(doc(context.firestore(), "users/alice/cryptoWallets/spot"), {
@@ -95,6 +169,16 @@ test("clients cannot write either wallet, holdings, transactions or trade reques
   await assertFails(setDoc(doc(alice, "users/alice/wallets/main/transactions/fake"), {
     status: "COMPLETED_TEST",
     testOnly: true,
+  }));
+  await assertFails(setDoc(doc(alice, "users/alice/wallets/main/transactions/pending-fake"), {
+    type: "DEPOSIT",
+    status: "PENDING",
+    amountMinorUnits: 100,
+  }));
+  await assertFails(setDoc(doc(alice, "users/alice/financialRequests/pending-fake"), {
+    type: "DEPOSIT",
+    status: "PENDING",
+    amountMinorUnits: 100,
   }));
   await assertFails(setDoc(doc(alice, "users/alice/walletOperations/fake"), {
     operation: "DEPOSIT",
@@ -189,6 +273,72 @@ test("users can edit only validated bot settings in their own namespace", async 
   await assertFails(updateDoc(doc(alice, "users/alice/botSettings/trend"), {
     tradeSizeMinorUnits: -1,
     updatedAt: serverTimestamp(),
+  }));
+});
+
+test("users can persist only their own notifications and notification preferences", async () => {
+  const alice = environment.authenticatedContext("alice").firestore();
+  const bob = environment.authenticatedContext("bob").firestore();
+  await assertSucceeds(setDoc(doc(alice, "users/alice/notifications/notice-1"), {
+    userId: "alice",
+    title: "Wallet update",
+    body: "A test transaction was recorded.",
+    category: "WALLET",
+    timestamp: "Today",
+    isRead: false,
+    deepLink: "transaction_history",
+    priority: "NORMAL",
+    metadata: {},
+    createdAt: serverTimestamp(),
+  }));
+  await assertFails(getDoc(doc(bob, "users/alice/notifications/notice-1")));
+  await assertFails(setDoc(doc(alice, "users/bob/notifications/forged"), {
+    userId: "alice",
+    title: "Forged",
+    body: "No",
+    category: "WALLET",
+    isRead: false,
+    createdAt: serverTimestamp(),
+  }));
+  await assertSucceeds(setDoc(doc(alice, "users/alice/settings/notifications"), {
+    allowTransactions: true,
+    allowTrading: true,
+    allowTradingBot: true,
+    allowSecurity: true,
+    allowSystem: true,
+    allowDemoGames: false,
+  }));
+  await assertFails(setDoc(doc(alice, "users/alice/settings/notifications"), {
+    allowTransactions: true,
+    isAdmin: true,
+  }));
+});
+
+test("support tickets and user replies stay in the authenticated user's namespace", async () => {
+  const alice = environment.authenticatedContext("alice").firestore();
+  const bob = environment.authenticatedContext("bob").firestore();
+  await assertSucceeds(setDoc(doc(alice, "users/alice/supportTickets/ticket-1"), {
+    userId: "alice",
+    subject: "Question",
+    category: "ACCOUNT",
+    status: "OPEN",
+    latestResponse: "Need help.",
+    transactionId: null,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  }));
+  await assertSucceeds(setDoc(doc(alice, "users/alice/supportTickets/ticket-1/messages/message-1"), {
+    senderType: "USER",
+    senderName: "Alice",
+    messageText: "Need help.",
+    createdAt: serverTimestamp(),
+  }));
+  await assertFails(getDoc(doc(bob, "users/alice/supportTickets/ticket-1")));
+  await assertFails(setDoc(doc(alice, "users/alice/supportTickets/ticket-1/messages/forged"), {
+    senderType: "SUPPORT_AGENT",
+    senderName: "Support",
+    messageText: "Fake reply",
+    createdAt: serverTimestamp(),
   }));
 });
 

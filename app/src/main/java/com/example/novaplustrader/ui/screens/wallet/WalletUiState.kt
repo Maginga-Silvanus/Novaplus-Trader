@@ -18,7 +18,7 @@ data class WalletUiState(
     val selectedCurrency: Currency = Currency.USD,
 
     // Granular Ledger Balances
-    val usdBalance: Double = 0.0,
+    val usdBalance: Double = 5.00,
     val usdPendingBalance: Double = 0.0,
     val usdLockedBalance: Double = 0.0,
 
@@ -67,6 +67,8 @@ data class WalletUiState(
     val withdrawAmountString: String = "",
     val withdrawFee: Double = 0.50,
     val savedCards: List<String> = emptyList(),
+    val savedMpesaPhone: String = "",
+    val mpesaPhoneLastUpdatedMs: Long = 0L,
     val selectedSavedCardIndex: Int = 0,
     val isAddNewCardForWithdrawal: Boolean = false,
     val securityPin: String = "",

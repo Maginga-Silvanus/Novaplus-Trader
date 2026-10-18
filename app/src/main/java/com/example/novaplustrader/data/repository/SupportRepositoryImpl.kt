@@ -7,86 +7,102 @@ import com.example.novaplustrader.ui.screens.support.models.TicketCategory
 import com.example.novaplustrader.ui.screens.support.models.TicketMessageModel
 import com.example.novaplustrader.ui.screens.support.models.TicketStatus
 import com.example.novaplustrader.ui.screens.support.models.defaultFaqList
-import kotlinx.coroutines.delay
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FieldValue
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.Query
+import com.google.firebase.firestore.SetOptions
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.update
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
+import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.tasks.await
 
-class SupportRepositoryImpl : SupportRepository {
+class SupportRepositoryImpl(
+    private val auth: FirebaseAuth = FirebaseAuth.getInstance(),
+    private val firestore: FirebaseFirestore = FirebaseFirestore.getInstance()
+) : SupportRepository {
 
-    private val _faqs = MutableStateFlow(defaultFaqList)
+    override fun observeFaqs(): Flow<List<FaqModel>> = flowOf(defaultFaqList)
 
-    private val _tickets = MutableStateFlow<List<SupportTicketModel>>(
-        listOf(
-            SupportTicketModel(
-                id = "st_901",
-                subject = "Deposit confirmation inquiry for M-Pesa",
-                category = TicketCategory.DEPOSIT,
-                status = TicketStatus.RESOLVED,
-                createdDate = "12 Oct, 14:00",
-                lastUpdated = "12 Oct, 14:25",
-                latestResponse = "Your deposit was confirmed and credited to your KES wallet."
-            ),
-            SupportTicketModel(
-                id = "st_902",
-                subject = "Question regarding Bot custom stop-loss settings",
-                category = TicketCategory.BOT,
-                status = TicketStatus.OPEN,
-                createdDate = "Yesterday, 16:30",
-                lastUpdated = "Yesterday, 16:30",
-                latestResponse = "Our technical desk is reviewing your bot parameter setup."
-            )
-        )
-    )
-
-    private val _messagesMap = MutableStateFlow<Map<String, List<TicketMessageModel>>>(
-        mapOf(
-            "st_901" to listOf(
-                TicketMessageModel(
-                    id = "m1",
-                    ticketId = "st_901",
-                    senderType = SenderType.USER,
-                    senderName = "Leonard Lopez",
-                    messageText = "Hi, I initiated an M-Pesa deposit of KES 5,000. Just wanted to check confirmation.",
-                    timestamp = "12 Oct, 14:00"
-                ),
-                TicketMessageModel(
-                    id = "m2",
-                    ticketId = "st_901",
-                    senderType = SenderType.SUPPORT_AGENT,
-                    senderName = "Nova Support Desk",
-                    messageText = "Hello Leonard! Your deposit was confirmed by the payment gateway and credited to your wallet.",
-                    timestamp = "12 Oct, 14:25"
-                )
-            ),
-            "st_902" to listOf(
-                TicketMessageModel(
-                    id = "m3",
-                    ticketId = "st_902",
-                    senderType = SenderType.USER,
-                    senderName = "Leonard Lopez",
-                    messageText = "Does the custom strategy allow stop-loss percentages below 0.5%?",
-                    timestamp = "Yesterday, 16:30"
-                )
-            )
-        )
-    )
-
-    override fun observeFaqs(): StateFlow<List<FaqModel>> = _faqs.asStateFlow()
-    override fun observeTickets(): StateFlow<List<SupportTicketModel>> = _tickets.asStateFlow()
-
-    override fun observeTicketById(ticketId: String): Flow<SupportTicketModel?> {
-        return _tickets.map { list -> list.find { it.id == ticketId } }
+    override fun observeTickets(): Flow<List<SupportTicketModel>> = callbackFlow {
+        val uid = auth.currentUser?.uid
+        if (uid.isNullOrBlank()) {
+            trySend(emptyList())
+            close()
+            return@callbackFlow
+        }
+        val listener = ticketCollection(uid)
+            .orderBy("createdAt", Query.Direction.DESCENDING)
+            .addSnapshotListener { snapshot, error ->
+                when {
+                    error != null -> close(error)
+                    snapshot == null -> close(IllegalStateException("Unable to load support tickets"))
+                    else -> try {
+                        trySend(snapshot.documents.map { it.toTicket(uid) })
+                    } catch (parseError: Exception) {
+                        close(parseError)
+                    }
+                }
+            }
+        awaitClose { listener.remove() }
     }
 
-    override fun observeTicketMessages(ticketId: String): Flow<List<TicketMessageModel>> {
-        return _messagesMap.map { map -> map[ticketId] ?: emptyList() }
+    override fun observeTicketById(ticketId: String): Flow<SupportTicketModel?> = callbackFlow {
+        val uid = auth.currentUser?.uid
+        if (uid.isNullOrBlank()) {
+            trySend(null)
+            close()
+            return@callbackFlow
+        }
+        val listener = ticketCollection(uid).document(ticketId).addSnapshotListener { snapshot, error ->
+            when {
+                error != null -> close(error)
+                snapshot == null -> close(IllegalStateException("Unable to load support ticket"))
+                !snapshot.exists() -> trySend(null)
+                else -> try {
+                    trySend(snapshot.toTicket(uid))
+                } catch (parseError: Exception) {
+                    close(parseError)
+                }
+            }
+        }
+        awaitClose { listener.remove() }
+    }
+
+    override fun observeTicketMessages(ticketId: String): Flow<List<TicketMessageModel>> = callbackFlow {
+        val uid = auth.currentUser?.uid
+        if (uid.isNullOrBlank()) {
+            trySend(emptyList())
+            close()
+            return@callbackFlow
+        }
+        val listener = ticketCollection(uid).document(ticketId).collection("messages")
+            .orderBy("createdAt", Query.Direction.ASCENDING)
+            .addSnapshotListener { snapshot, error ->
+                when {
+                    error != null -> close(error)
+                    snapshot == null -> close(IllegalStateException("Unable to load support messages"))
+                    else -> try {
+                        trySend(snapshot.documents.map { document ->
+                            TicketMessageModel(
+                                id = document.id,
+                                ticketId = ticketId,
+                                senderType = SenderType.valueOf(
+                                    document.getString("senderType") ?: error("Message has no sender type")
+                                ),
+                                senderName = document.getString("senderName").orEmpty(),
+                                messageText = document.getString("messageText").orEmpty(),
+                                timestamp = document.getTimestamp("createdAt")?.toDate()?.toString().orEmpty()
+                            )
+                        })
+                    } catch (parseError: Exception) {
+                        close(parseError)
+                    }
+                }
+            }
+        awaitClose { listener.remove() }
     }
 
     override suspend fun submitSupportTicket(
@@ -94,80 +110,127 @@ class SupportRepositoryImpl : SupportRepository {
         subject: String,
         description: String,
         transactionId: String?
-    ): Result<SupportTicketModel> {
-        delay(900) // Backend ticket creation verification
-
-        val newTicketId = "st_${System.currentTimeMillis().toString().takeLast(5)}"
-        val time = getFormattedTime()
-
-        val newTicket = SupportTicketModel(
-            id = newTicketId,
-            subject = subject,
-            category = category,
-            status = TicketStatus.OPEN,
-            createdDate = time,
-            lastUpdated = time,
-            latestResponse = "Ticket received. Support team will respond shortly.",
-            transactionId = transactionId
-        )
-
-        val firstMessage = TicketMessageModel(
-            id = "m_${System.currentTimeMillis()}",
-            ticketId = newTicketId,
-            senderType = SenderType.USER,
-            senderName = "Leonard Lopez",
-            messageText = description,
-            timestamp = time
-        )
-
-        _tickets.update { listOf(newTicket) + it }
-        _messagesMap.update { current ->
-            current + (newTicketId to listOf(firstMessage))
+    ): Result<SupportTicketModel> = try {
+        val user = auth.currentUser ?: error("Sign in before submitting a support ticket")
+        require(subject.isNotBlank() && description.isNotBlank()) {
+            "A subject and description are required"
         }
-
-        return Result.success(newTicket)
+        val tickets = ticketCollection(user.uid)
+        val ticketRef = tickets.document()
+        val messageRef = ticketRef.collection("messages").document()
+        val now = FieldValue.serverTimestamp()
+        firestore.runBatch { batch ->
+            batch.set(
+                ticketRef,
+                mapOf(
+                    "userId" to user.uid,
+                    "subject" to subject,
+                    "category" to category.name,
+                    "status" to TicketStatus.OPEN.name,
+                    "latestResponse" to description,
+                    "transactionId" to transactionId,
+                    "createdAt" to now,
+                    "updatedAt" to now
+                )
+            )
+            batch.set(
+                messageRef,
+                mapOf(
+                    "senderType" to SenderType.USER.name,
+                    "senderName" to user.displayName.orEmpty(),
+                    "messageText" to description,
+                    "createdAt" to now
+                )
+            )
+        }.await()
+        Result.success(
+            SupportTicketModel(
+                id = ticketRef.id,
+                userId = user.uid,
+                subject = subject,
+                category = category,
+                status = TicketStatus.OPEN,
+                createdDate = "",
+                lastUpdated = "",
+                latestResponse = description,
+                transactionId = transactionId
+            )
+        )
+    } catch (error: CancellationException) {
+        throw error
+    } catch (error: Exception) {
+        Result.failure(error)
     }
 
     override suspend fun sendTicketReply(
         ticketId: String,
         messageText: String
-    ): Result<TicketMessageModel> {
-        delay(600)
-        val time = getFormattedTime()
-
-        val newMessage = TicketMessageModel(
-            id = "m_${System.currentTimeMillis()}",
-            ticketId = ticketId,
-            senderType = SenderType.USER,
-            senderName = "Leonard Lopez",
-            messageText = messageText,
-            timestamp = time
+    ): Result<TicketMessageModel> = try {
+        val user = auth.currentUser ?: error("Sign in before replying to a support ticket")
+        require(messageText.isNotBlank()) { "A reply cannot be empty" }
+        val ticketRef = ticketCollection(user.uid).document(ticketId)
+        val ticketSnapshot = ticketRef.get().await()
+        require(ticketSnapshot.exists()) { "Support ticket was not found" }
+        val messageRef = ticketRef.collection("messages").document()
+        val now = FieldValue.serverTimestamp()
+        firestore.runBatch { batch ->
+            batch.set(
+                messageRef,
+                mapOf(
+                    "senderType" to SenderType.USER.name,
+                    "senderName" to user.displayName.orEmpty(),
+                    "messageText" to messageText,
+                    "createdAt" to now
+                )
+            )
+            batch.update(
+                ticketRef,
+                mapOf(
+                    "latestResponse" to messageText,
+                    "status" to TicketStatus.OPEN.name,
+                    "updatedAt" to now
+                )
+            )
+        }.await()
+        Result.success(
+            TicketMessageModel(
+                id = messageRef.id,
+                ticketId = ticketId,
+                senderType = SenderType.USER,
+                senderName = user.displayName.orEmpty(),
+                messageText = messageText,
+                timestamp = ""
+            )
         )
-
-        _messagesMap.update { current ->
-            val existing = current[ticketId] ?: emptyList()
-            current + (ticketId to (existing + newMessage))
-        }
-
-        // Update ticket last updated timestamp
-        _tickets.update { list ->
-            list.map { if (it.id == ticketId) it.copy(lastUpdated = time, status = TicketStatus.OPEN) else it }
-        }
-
-        return Result.success(newMessage)
+    } catch (error: CancellationException) {
+        throw error
+    } catch (error: Exception) {
+        Result.failure(error)
     }
 
     override suspend fun reportProblem(
         category: String,
         description: String,
         deviceMetadata: String
-    ): Result<Boolean> {
-        delay(800)
-        return Result.success(true)
-    }
+    ): Result<Boolean> = submitSupportTicket(
+        category = TicketCategory.TECHNICAL_ISSUE,
+        subject = category.ifBlank { "Technical issue" },
+        description = "$description\n\nDevice: $deviceMetadata",
+        transactionId = null
+    ).map { true }
 
-    private fun getFormattedTime(): String {
-        val sdf = SimpleDateFormat("dd MMM, HH:mm", Locale.US)
-        return sdf.format(Date())
-    }
+    private fun ticketCollection(uid: String) =
+        firestore.collection("users").document(uid).collection("supportTickets")
+
+    private fun com.google.firebase.firestore.DocumentSnapshot.toTicket(uid: String) = SupportTicketModel(
+        id = id,
+        userId = uid,
+        subject = getString("subject") ?: error("Support ticket is missing its subject"),
+        category = TicketCategory.valueOf(getString("category") ?: error("Support ticket is missing its category")),
+        status = TicketStatus.valueOf(getString("status") ?: TicketStatus.OPEN.name),
+        createdDate = getTimestamp("createdAt")?.toDate()?.toString().orEmpty(),
+        lastUpdated = getTimestamp("updatedAt")?.toDate()?.toString().orEmpty(),
+        latestResponse = getString("latestResponse"),
+        transactionId = getString("transactionId")
+    )
 }

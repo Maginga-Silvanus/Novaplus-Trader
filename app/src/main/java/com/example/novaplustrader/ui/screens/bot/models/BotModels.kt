@@ -49,7 +49,7 @@ data class BotConfiguration(
     val asset: TradingAsset = defaultAssetListFallback,
     val strategy: BotStrategy = BotStrategy.BALANCED,
     val riskLevel: BotRiskLevel = BotRiskLevel.MEDIUM,
-    val allocatedAmount: Double = 500.00,
+    val allocatedAmount: Double = 0.00,
     val entryThresholdPercent: Double = 1.5,
     val stopLossPercent: Double = 2.0,
     val takeProfitPercent: Double = 4.0,
@@ -61,12 +61,12 @@ data class BotConfiguration(
 private val defaultAssetListFallback = defaultAssetList[0]
 
 data class BotPerformance(
-    val sessionProfitLoss: Double = 42.80,
-    val totalTrades: Int = 18,
-    val winningTrades: Int = 14,
-    val losingTrades: Int = 4,
-    val winRatePercentage: Double = 77.8,
-    val currentExposure: Double = 350.00,
+    val sessionProfitLoss: Double = 0.0,
+    val totalTrades: Int = 0,
+    val winningTrades: Int = 0,
+    val losingTrades: Int = 0,
+    val winRatePercentage: Double = 0.0,
+    val currentExposure: Double = 0.0,
     val isMockData: Boolean = true
 )
 

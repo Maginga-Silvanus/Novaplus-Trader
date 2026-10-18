@@ -43,6 +43,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.novaplustrader.ui.components.ConfirmationSheet
 import com.example.novaplustrader.ui.components.IconActionButton
+import com.example.novaplustrader.ui.components.AccessibleDropdownSelector
 import com.example.novaplustrader.ui.components.PrimaryButton
 import com.example.novaplustrader.ui.components.SecondaryButton
 import com.example.novaplustrader.ui.components.SuccessAnimation
@@ -264,38 +265,13 @@ fun BetSlipScreen(
 
                         Spacer(modifier = Modifier.height(10.dp))
 
-                        // Preset Stake Buttons
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            listOf(10, 25, 50, 100).forEach { preset ->
-                                val isSelected = uiState.selectedStakePreset == preset
-                                val bg = if (isSelected) ElectricLimeSurface else SurfaceDarkCard
-                                val border = if (isSelected) ElectricLime else SurfaceBorder
-
-                                Box(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .background(bg)
-                                        .border(1.dp, border, RoundedCornerShape(12.dp))
-                                        .clickable {
-                                            haptics.lightTap()
-                                            viewModel.applyStakePreset(preset)
-                                        }
-                                        .padding(vertical = 10.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        text = "$preset",
-                                        color = if (isSelected) ElectricLime else TextPrimary,
-                                        fontSize = 13.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-                            }
-                        }
+                        AccessibleDropdownSelector(
+                            label = "Demo stake preset",
+                            options = listOf("10", "25", "50", "100"),
+                            selectedOption = uiState.selectedStakePreset?.toString() ?: "Select preset",
+                            optionLabel = { "$it credits" },
+                            onOptionSelected = { preset -> viewModel.applyStakePreset(preset.toInt()) }
+                        )
 
                         Spacer(modifier = Modifier.height(16.dp))
 

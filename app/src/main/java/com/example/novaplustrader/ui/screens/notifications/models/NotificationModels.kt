@@ -13,7 +13,7 @@ enum class NotificationCategory(val label: String) {
 
 data class NotificationModel(
     val id: String,
-    val userId: String = "usr_current",
+    val userId: String = "",
     val title: String,
     val body: String,
     val category: NotificationCategory,

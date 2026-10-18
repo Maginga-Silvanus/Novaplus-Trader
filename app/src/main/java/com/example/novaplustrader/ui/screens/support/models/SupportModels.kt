@@ -60,7 +60,7 @@ data class TicketMessageModel(
 
 data class SupportTicketModel(
     val id: String,
-    val userId: String = "usr_current",
+    val userId: String = "",
     val subject: String,
     val category: TicketCategory,
     val status: TicketStatus = TicketStatus.OPEN,

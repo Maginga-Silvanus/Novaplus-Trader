@@ -12,7 +12,7 @@
 - `users/{uid}/tradeRequests/{idempotencyKey}` stores the authoritative outcome for each paper-trade request.
 - `users/{uid}/walletOperations/{idempotencyKey}` stores idempotent test wallet funding requests.
 
-The Functions backend is the only writer to wallet balances and transaction records. The app has owner-read access only. Initial test balances default to zero and are granted only when the authenticated Firebase ID token has the boolean custom claim `testAccount: true`; regular signed-in users always initialize with zero. Configure balances through Firebase Functions environment variables, never client fields:
+The Functions backend is the only writer to wallet balances and transaction records. Signed-in owners and users with an authorized `adminRole` claim can read wallet data; owner clients cannot write authoritative balances or transactions. Initial test balances default to zero and are granted only when the authenticated Firebase ID token has the boolean custom claim `testAccount: true`; regular signed-in users always initialize with zero. Configure balances through Firebase Functions environment variables, never client fields:
 
 | Variable | Default | Purpose |
 | --- | ---: | --- |
@@ -39,11 +39,45 @@ The callable rejects test credits and withdrawals unless the same claim is prese
 
 Test deposits are capped cumulatively per currency and test withdrawals cannot exceed the matching test balance. Both operations are idempotent and explicitly marked `COMPLETED_TEST`; no payment or payout provider is called.
 
+## Administrator roles
+
+Administrative access is provisioned only by a trusted Firebase Admin SDK environment. The Android app reads the signed Firebase ID token claim `adminRole` and grants portal access only when it exactly matches one of `SUPER_ADMIN`, `ADMIN`, `SUPPORT`, `OPERATIONS`, `COMPLIANCE`, or `READ_ONLY`. Missing, malformed, or unknown values mean no admin access. Firestore Rules independently enforce the same claim allowlist for administrative reads; user profile fields never grant a role. Do not add a client-callable role setter.
+
+Provision a role from a secured operator script or backend using the Admin SDK, preserving unrelated claims:
+
+```js
+const user = await admin.auth().getUser(uid);
+await admin.auth().setCustomUserClaims(uid, {
+  ...(user.customClaims || {}),
+  adminRole: "SUPPORT", // use one of the documented role names
+});
+```
+
+To revoke admin access, remove `adminRole` while preserving other claims, then revoke refresh tokens as appropriate. Force-refresh the operator's ID token after provisioning or revocation. Any future privileged callable must validate `request.auth.token.adminRole` server-side against the role allowlist and enforce action-specific permissions; a role displayed by the client is never authorization.
+
+The role policy is enforced in Android navigation for usability and independently by Firestore Rules for data access:
+
+| Claim | Permitted admin area |
+| --- | --- |
+| `SUPER_ADMIN`, `ADMIN` | All admin areas |
+| `SUPPORT` | Support tickets and messages |
+| `OPERATIONS` | Wallets, transactions, paper trading, and bot views |
+| `COMPLIANCE` | KYC and responsible-gaming compliance views |
+| `READ_ONLY` | Read-only access to all admin areas |
+
+Never use a profile document role as authority. Changes remain blocked unless a trusted backend explicitly implements and authorizes them.
+
+## Pending financial requests
+
+`createFinancialRequest` accepts authenticated deposit, withdrawal, and internal transfer requests. The callable derives the sender UID from the verified Firebase Auth token, validates the request type, currency, amount, method/destination/recipient, and idempotency key, and atomically writes an owner-scoped request and a `PENDING` main-wallet transaction record. A retry with the same key and identical payload returns the original record; reusing a key for different fields is rejected. For transfers the callable resolves the target to a Firebase Auth user before recording it. It never updates wallet balances, reserves or debits funds, credits a recipient, contacts payment providers, or claims settlement. A pending record is only an accepted request, not proof that payment or transfer occurred. Refunds, reversals, and fee estimates remain unavailable until trusted processing is configured.
+
+The app reads owner transaction history from `users/{uid}/wallets/main/transactions`. Clients cannot create or modify these records or `users/{uid}/financialRequests`; only Admin SDK-backed Functions can write them. The request callable does not accept a client-provided UID, wallet ID, PIN, status, balance, provider reference, or settlement state. Do not pass payment card credentials or security PINs to this endpoint.
+
 ## Paper crypto trading
 
 The Android app reads live public market quotes from its existing Binance adapter. The callable independently fetches the supported Binance `ASSETUSDT` ticker and checks it against the submitted quote and limit before executing a paper order. USDT is treated as USD for this test-only valuation; the displayed result is not an exchange execution price guarantee.
 
-`submitSpotTradeRequest` accepts supported BTC, ETH, SOL, and BNB pairs. Buys spend main-wallet TEST USD and sells specify the asset quantity. The callable validates quote freshness, supported pair, amount denomination, minimum order, available test cash or holdings, limit price, and fee. It atomically updates the main test USD balance, asset holding, idempotency request, main-wallet transaction history, and crypto transaction record using integer minor/atomic units. Successful responses include a server-priced SIMULATED TRADE receipt. `FILLED_TEST` means only that the simulated transaction was recorded. It is not a real exchange order, cryptocurrency custody, or an on-chain transfer.
+`submitSpotTradeRequest` accepts supported BTC, ETH, SOL, BNB, XRP, ADA, DOGE, and LTC USDT pairs. Buys spend main-wallet TEST USD and sells specify the asset quantity. The callable validates quote freshness, supported pair, amount denomination, minimum order, available test cash or holdings, limit price, and fee. It atomically updates the main test USD balance, asset holding, idempotency request, main-wallet transaction history, and crypto transaction record using integer minor/atomic units. Successful responses include a server-priced SIMULATED TRADE receipt. `FILLED_TEST` means only that the simulated transaction was recorded. It is not a real exchange order, cryptocurrency custody, or an on-chain transfer.
 
 Market updates are valuation data only and never mutate holdings or balances. No exchange credentials, real-money balance, payment execution, or custody provider is configured.
 
@@ -51,7 +85,7 @@ Market updates are valuation data only and never mutate holdings or balances. No
 
 The Android market screens use Binance public Spot REST and WebSocket market data directly; they do not use these wallet callables for chart or portfolio updates.
 
-- `GET /api/v3/exchangeInfo?symbols=...` verifies that the supported BTCUSDT, ETHUSDT, SOLUSDT, and BNBUSDT pairs are currently spot-tradable.
+- `GET /api/v3/exchangeInfo?symbols=...` verifies that the supported BTCUSDT, ETHUSDT, SOLUSDT, BNBUSDT, XRPUSDT, ADAUSDT, DOGEUSDT, and LTCUSDT pairs are currently spot-tradable.
 - `GET /api/v3/ticker/24hr?symbols=...` loads 24-hour price/change and base/quote volume.
 - `GET /api/v3/ticker/24hr?symbol=...` seeds the selected pair's ticker.
 - `GET /api/v3/klines?symbol=...&interval=1m|5m|15m|1h|4h|1d&limit=100` loads OHLCV history.

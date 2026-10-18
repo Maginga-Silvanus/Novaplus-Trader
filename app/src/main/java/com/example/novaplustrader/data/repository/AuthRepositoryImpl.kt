@@ -4,6 +4,9 @@ import com.example.novaplustrader.domain.model.auth.UserProfileModel
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.GoogleAuthProvider
 import com.google.firebase.auth.UserProfileChangeRequest
+import com.google.firebase.firestore.FieldValue
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.SetOptions
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -13,7 +16,8 @@ import java.util.Date
 import java.util.Locale
 
 class AuthRepositoryImpl(
-    private val firebaseAuth: FirebaseAuth = FirebaseAuth.getInstance()
+    private val firebaseAuth: FirebaseAuth = FirebaseAuth.getInstance(),
+    private val firestore: FirebaseFirestore = FirebaseFirestore.getInstance()
 ) : AuthRepository {
 
     companion object {
@@ -53,6 +57,12 @@ class AuthRepositoryImpl(
 
     override suspend fun getCurrentUser(): UserProfileModel? {
         val user = firebaseAuth.currentUser ?: return null
+        try {
+            user.reload().await()
+        } catch (_: Exception) {
+            firebaseAuth.signOut()
+            return null
+        }
         return UserProfileModel(
             uid = user.uid,
             email = user.email ?: "trader@novaplustrader.com",
@@ -95,6 +105,18 @@ class AuthRepositoryImpl(
             } catch (_: Exception) {
                 // Ignore profile update network delay/failure, cachedFullName preserves user name locally
             }
+            val profileRef = firestore.collection("users").document(user.uid)
+            profileRef.set(
+                mapOf(
+                    "uid" to user.uid,
+                    "email" to (user.email ?: email),
+                    "fullName" to fullName,
+                    "displayName" to fullName.substringBefore(" "),
+                    "createdAt" to FieldValue.serverTimestamp(),
+                    "updatedAt" to FieldValue.serverTimestamp()
+                ),
+                SetOptions.merge()
+            ).await()
 
             Result.success(
                 UserProfileModel(

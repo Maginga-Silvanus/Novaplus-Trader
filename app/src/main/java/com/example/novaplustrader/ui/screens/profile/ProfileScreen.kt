@@ -109,7 +109,7 @@ fun ProfileScreen(
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         UserAvatar(
-                            initials = p?.displayName?.take(2) ?: "LL",
+                            initials = p?.displayName?.take(2)?.ifBlank { null } ?: "NT",
                             size = 68.dp,
                             hasOnlineBadge = true
                         )
@@ -117,14 +117,14 @@ fun ProfileScreen(
                         Spacer(modifier = Modifier.height(12.dp))
 
                         Text(
-                            text = p?.fullName ?: "Leonard Lopez",
+                            text = p?.fullName?.ifBlank { null } ?: "Nova Trader",
                             color = TextPrimary,
                             fontSize = 20.sp,
                             fontWeight = FontWeight.Bold
                         )
 
                         Text(
-                            text = p?.email ?: "leonard.lopez@novapay.io",
+                            text = p?.email?.ifBlank { null } ?: "No signed-in email",
                             color = TextMuted,
                             fontSize = 13.sp
                         )
@@ -135,9 +135,16 @@ fun ProfileScreen(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            StatusBadge(status = TransactionStatus.COMPLETED)
+                            StatusBadge(
+                                status = if (p?.verificationStatus == "VERIFIED") {
+                                    TransactionStatus.COMPLETED
+                                } else {
+                                    TransactionStatus.PENDING
+                                }
+                            )
                             Text(
-                                text = "ID: ${p?.accountId ?: "#NV-92841"}",
+                                text = p?.accountId?.takeIf { it.isNotBlank() }?.let { "ID: $it" }
+                                    ?: "Account ID unavailable",
                                 color = ElectricLime,
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold
@@ -147,7 +154,8 @@ fun ProfileScreen(
                         Spacer(modifier = Modifier.height(8.dp))
 
                         Text(
-                            text = p?.createdAt ?: "Member since Jan 2024",
+                            text = p?.createdAt?.ifBlank { null }?.let { "Member since $it" }
+                                ?: "Membership date unavailable",
                             color = TextMuted,
                             fontSize = 11.sp
                         )

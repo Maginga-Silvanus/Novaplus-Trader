@@ -1,10 +1,14 @@
-const ASSETS = new Set(["BTC", "ETH", "SOL", "BNB"]);
-const PORTFOLIO_ASSETS = ["BTC", "ETH", "SOL", "BNB", "USDT", "USDC"];
+const ASSETS = new Set(["BTC", "ETH", "SOL", "BNB", "XRP", "ADA", "DOGE", "LTC"]);
+const PORTFOLIO_ASSETS = ["BTC", "ETH", "SOL", "BNB", "XRP", "ADA", "DOGE", "LTC", "USDT", "USDC"];
 const ASSET_SCALES = {
   BTC: 100_000_000,
   ETH: 100_000_000,
   SOL: 1_000_000_000,
   BNB: 100_000_000,
+  XRP: 1_000_000,
+  ADA: 1_000_000,
+  DOGE: 1_000_000,
+  LTC: 100_000_000,
   USDT: 1_000_000,
   USDC: 1_000_000,
 };

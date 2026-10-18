@@ -9,7 +9,7 @@ import org.junit.Test
 
 class TwoWalletArchitectureTest {
     @Test
-    fun newMainWalletHasZeroUsdAndKesBalances() {
+    fun newMainWalletStartsWithZeroBalanceUntilFirebaseInitializesIt() {
         val mainWallet = MainUserWalletSnapshot()
 
         assertEquals(0L, mainWallet.usdBalanceMinorUnits)

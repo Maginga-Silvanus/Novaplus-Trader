@@ -1,7 +1,9 @@
 package com.example.novaplustrader
 
+import com.example.novaplustrader.data.remote.KycComplianceServiceImpl
 import com.example.novaplustrader.domain.model.compliance.DocumentType
 import com.example.novaplustrader.domain.model.compliance.KycRequirement
+import com.example.novaplustrader.domain.model.compliance.KycReviewDecision
 import com.example.novaplustrader.domain.model.compliance.KycStatus
 import com.example.novaplustrader.domain.model.compliance.KycVerificationRequest
 import com.example.novaplustrader.domain.model.compliance.RiskStatus
@@ -9,6 +11,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import kotlinx.coroutines.runBlocking
 
 class KycComplianceTest {
 
@@ -63,5 +66,28 @@ class KycComplianceTest {
 
         assertEquals("Government ID", requirement.title)
         assertTrue(requirement.required)
+    }
+
+    @Test
+    fun unconfiguredVerificationDoesNotClaimSuccessOrVerifiedStatus() = runBlocking {
+        val service = KycComplianceServiceImpl()
+        val request = KycVerificationRequest(
+            userId = "firebase-uid",
+            fullName = "Test User",
+            dateOfBirth = "1990-01-01",
+            documentType = DocumentType.NATIONAL_ID,
+            documentNumber = "TEST-1"
+        )
+
+        val submission = service.submitKycVerification(request)
+        val review = service.reviewKycSubmission(
+            userId = request.userId,
+            decision = KycReviewDecision.APPROVE,
+            rejectionReason = null
+        )
+
+        assertTrue(submission.isFailure)
+        assertTrue(review.isFailure)
+        assertEquals(KycStatus.NOT_STARTED, service.observeKycStatus(request.userId).value)
     }
 }

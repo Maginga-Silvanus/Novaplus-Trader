@@ -14,27 +14,44 @@ enum class TransactionState(val label: String) {
 enum class DepositMethod(
     val title: String,
     val description: String,
-    val feeText: String
+    val feeText: String,
+    val badgeText: String,
+    val isAvailable: Boolean = true
 ) {
     MPESA(
-        title = "TEST wallet credit",
-        description = "Simulated balance only. No payment provider is contacted.",
-        feeText = "TEST ONLY"
+        title = "M-Pesa STK Push",
+        description = "Instant push prompt directly to your phone",
+        feeText = "0% Fee",
+        badgeText = "Active",
+        isAvailable = true
+    ),
+    PAYBILL(
+        title = "M-Pesa Paybill",
+        description = "Direct manual business paybill deposit",
+        feeText = "0% Fee",
+        badgeText = "Fast",
+        isAvailable = true
     ),
     BANK(
         title = "Bank Wire Transfer",
         description = "Direct deposit from localized banking partners",
-        feeText = "1.2% Fee"
+        feeText = "1.2% Fee",
+        badgeText = "Under Maintenance",
+        isAvailable = false
     ),
     CARD(
         title = "Debit / Credit Card",
         description = "Instant card authorization (Visa / MasterCard)",
-        feeText = "1.5% Fee"
+        feeText = "1.5% Fee",
+        badgeText = "Under Maintenance",
+        isAvailable = false
     ),
     CRYPTO(
         title = "Crypto Deposit",
         description = "Deposit USDT, BTC, or ETH directly to your vault address",
-        feeText = "0% Fee"
+        feeText = "0% Fee",
+        badgeText = "Working",
+        isAvailable = true
     )
 }
 
@@ -44,9 +61,9 @@ enum class WithdrawMethod(
     val feeText: String
 ) {
     MPESA(
-        title = "TEST wallet withdrawal",
-        description = "Simulated balance only. No payout is sent.",
-        feeText = "TEST ONLY"
+        title = "M-Pesa Mobile",
+        description = "Withdraw directly to M-Pesa mobile wallet",
+        feeText = "KES 30 Fee"
     ),
     BANK(
         title = "Bank Account",

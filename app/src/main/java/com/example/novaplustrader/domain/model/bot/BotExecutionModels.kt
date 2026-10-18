@@ -29,13 +29,13 @@ enum class BotActivityType(val label: String) {
 }
 
 data class TradingBotModel(
-    val botId: String = "bot_primary_01",
-    val userId: String = "usr_9901",
-    val name: String = "Nova Momentum Alpha",
+    val botId: String = "",
+    val userId: String = "",
+    val name: String = "Trading Bot",
     val status: TradingBotStatus = TradingBotStatus.STOPPED,
     val strategy: BotStrategy = BotStrategy.BALANCED,
     val tradingPair: String = "BTC/USDT",
-    val allocationMinorUnits: Long = 50000L, // $500.00
+    val allocationMinorUnits: Long = 0L,
     val currency: Currency = Currency.USD,
     val riskLevel: BotRiskLevel = BotRiskLevel.MEDIUM,
     val maxOpenTrades: Int = 3,
@@ -44,8 +44,8 @@ data class TradingBotModel(
     val takeProfitPercentage: Double = 4.0,
     val entryThresholdPercentage: Double = 1.5,
     val maxSessionDurationHours: Int = 24,
-    val createdAt: String = "2024-10-01",
-    val updatedAt: String = "Today",
+    val createdAt: String = "",
+    val updatedAt: String = "",
     val startedAt: String? = null,
     val stoppedAt: String? = null,
     val lastActivityAt: String? = null,
@@ -69,15 +69,15 @@ data class BotActivityLogModel(
 )
 
 data class BotPerformanceModel(
-    val totalTrades: Int = 18,
-    val winningTrades: Int = 14,
-    val losingTrades: Int = 4,
-    val winRate: Double = 77.8,
-    val realizedProfitLossMinorUnits: Long = 4280L, // +$42.80
+    val totalTrades: Int = 0,
+    val winningTrades: Int = 0,
+    val losingTrades: Int = 0,
+    val winRate: Double = 0.0,
+    val realizedProfitLossMinorUnits: Long = 0L,
     val unrealizedProfitLossMinorUnits: Long = 0L,
-    val totalFeesMinorUnits: Long = 120L,
-    val currentExposureMinorUnits: Long = 35000L, // $350.00
-    val runtimeFormatted: String = "14h 22m"
+    val totalFeesMinorUnits: Long = 0L,
+    val currentExposureMinorUnits: Long = 0L,
+    val runtimeFormatted: String = "0m"
 ) {
     val realizedProfitLossDouble: Double
         get() = realizedProfitLossMinorUnits / 100.0

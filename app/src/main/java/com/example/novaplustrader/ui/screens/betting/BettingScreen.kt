@@ -36,6 +36,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.novaplustrader.ui.components.IconActionButton
+import com.example.novaplustrader.ui.components.AccessibleDropdownSelector
 import com.example.novaplustrader.ui.screens.betting.components.FeaturedEventCard
 import com.example.novaplustrader.ui.theme.BackgroundDark
 import com.example.novaplustrader.ui.theme.ElectricLime
@@ -132,35 +133,15 @@ fun BettingScreen(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(bottom = 120.dp)
             ) {
-                // Horizontal Sports Category Selector
                 item {
-                    LazyRow(
-                        contentPadding = PaddingValues(horizontal = 16.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.padding(vertical = 8.dp)
-                    ) {
-                        items(uiState.sports) { sport ->
-                            val isSelected = sport.id == uiState.selectedSport.id
-                            val bg = if (isSelected) ElectricLimeSurface else SurfaceDarkCard
-                            val border = if (isSelected) ElectricLime else SurfaceBorder
-
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(20.dp))
-                                    .background(bg)
-                                    .border(1.dp, border, RoundedCornerShape(20.dp))
-                                    .clickable { viewModel.selectSport(sport) }
-                                    .padding(horizontal = 16.dp, vertical = 10.dp)
-                            ) {
-                                Text(
-                                    text = sport.name,
-                                    color = if (isSelected) ElectricLime else TextPrimary,
-                                    fontSize = 13.sp,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
-                                )
-                            }
-                        }
-                    }
+                    AccessibleDropdownSelector(
+                        label = "Sport",
+                        options = uiState.sports,
+                        selectedOption = uiState.selectedSport,
+                        optionLabel = { it.name },
+                        onOptionSelected = viewModel::selectSport,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                    )
                 }
 
                 // Featured Events Section

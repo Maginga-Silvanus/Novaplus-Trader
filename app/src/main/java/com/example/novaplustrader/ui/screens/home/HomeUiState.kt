@@ -13,7 +13,7 @@ data class HomeUiState(
     val greeting: String = "Good afternoon",
     val unreadNotificationsCount: Int = 3,
     val selectedCurrency: Currency = Currency.USD,
-    val totalBalanceUsd: Double = 0.0,
+    val totalBalanceUsd: Double = 5.00,
     val totalBalanceKes: Double = 0.0,
     val todayChangeAmountUsd: Double = 0.0,
     val todayChangeAmountKes: Double = 0.0,

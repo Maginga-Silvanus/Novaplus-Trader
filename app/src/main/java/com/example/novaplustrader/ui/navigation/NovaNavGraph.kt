@@ -10,6 +10,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.example.novaplustrader.ui.screens.admin.AdminNavGraph
 import com.example.novaplustrader.ui.screens.auth.AuthViewModel
+import com.example.novaplustrader.ui.screens.auth.CreatePinScreen
 import com.example.novaplustrader.ui.screens.auth.LoginScreen
 import com.example.novaplustrader.ui.screens.auth.RegisterScreen
 import com.example.novaplustrader.ui.screens.auth.SplashScreen
@@ -26,6 +27,7 @@ import com.example.novaplustrader.ui.screens.casino.CasinoHistoryScreen
 import com.example.novaplustrader.ui.screens.casino.CasinoScreen
 import com.example.novaplustrader.ui.screens.casino.CasinoViewModel
 import com.example.novaplustrader.ui.screens.home.HomeScreen
+import com.example.novaplustrader.ui.screens.crypto.CryptoScreen
 import com.example.novaplustrader.ui.screens.home.HomeViewModel
 import com.example.novaplustrader.ui.screens.legal.LegalInformationScreen
 import com.example.novaplustrader.ui.screens.legal.RiskDisclosureScreen
@@ -52,6 +54,12 @@ import com.example.novaplustrader.ui.screens.support.SupportViewModel
 import com.example.novaplustrader.ui.screens.trading.TradingScreen
 import com.example.novaplustrader.ui.screens.trading.TradingViewModel
 import com.example.novaplustrader.ui.screens.trading.models.TradeDirection
+import com.example.novaplustrader.ui.screens.wallet.AddPaymentMethodScreen
+import com.example.novaplustrader.ui.screens.wallet.DepositBankScreen
+import com.example.novaplustrader.ui.screens.wallet.DepositCardScreen
+import com.example.novaplustrader.ui.screens.wallet.DepositCryptoScreen
+import com.example.novaplustrader.ui.screens.wallet.DepositMpesaScreen
+import com.example.novaplustrader.ui.screens.wallet.DepositPaybillScreen
 import com.example.novaplustrader.ui.screens.wallet.DepositScreen
 import com.example.novaplustrader.ui.screens.wallet.QrScannerScreen
 import com.example.novaplustrader.ui.screens.wallet.ReceiveMoneyScreen
@@ -127,7 +135,7 @@ fun NovaNavGraph(
             RegisterScreen(
                 viewModel = authViewModel,
                 onRegisterSuccess = {
-                    navController.navigate(Screen.Home.route) {
+                    navController.navigate(Screen.CreatePin.route) {
                         popUpTo(Screen.Welcome.route) { inclusive = true }
                     }
                 },
@@ -137,6 +145,16 @@ fun NovaNavGraph(
                     }
                 },
                 onBackClick = { navController.popBackStack() }
+            )
+        }
+
+        composable(Screen.CreatePin.route) {
+            CreatePinScreen(
+                onPinCreatedSuccess = {
+                    navController.navigate(Screen.Home.route) {
+                        popUpTo(Screen.CreatePin.route) { inclusive = true }
+                    }
+                }
             )
         }
 
@@ -174,6 +192,15 @@ fun NovaNavGraph(
             MarketsScreen(
                 tradingViewModel = tradingViewModel,
                 onNavigateToTrade = { navController.navigate(Screen.Trade.route) }
+            )
+        }
+
+        composable(Screen.Crypto.route) {
+            CryptoScreen(
+                onNavigateToReceive = { navController.navigate(Screen.Receive.route) },
+                onNavigateToSend = { navController.navigate(Screen.Send.route) },
+                onNavigateToTrade = { navController.navigate(Screen.Trade.route) },
+                onNavigateToBuyCrypto = { navController.navigate(Screen.BuyCrypto.route) }
             )
         }
 
@@ -328,14 +355,59 @@ fun NovaNavGraph(
         composable(Screen.Deposit.route) {
             DepositScreen(
                 viewModel = walletViewModel,
-                onBackClick = { navController.popBackStack() }
+                onBackClick = { navController.popBackStack() },
+                onMpesaClick = { navController.navigate(Screen.DepositMpesa.route) },
+                onPaybillClick = { navController.navigate(Screen.DepositPaybill.route) },
+                onBankClick = { navController.navigate(Screen.DepositBank.route) },
+                onCardClick = { navController.navigate(Screen.DepositCard.route) },
+                onCryptoClick = { navController.navigate(Screen.DepositCrypto.route) }
             )
+        }
+
+        composable(Screen.DepositMpesa.route) {
+            DepositMpesaScreen(walletViewModel, onBackClick = { navController.popBackStack() })
+        }
+        composable(Screen.DepositPaybill.route) {
+            DepositPaybillScreen(walletViewModel, onBackClick = { navController.popBackStack() })
+        }
+        composable(Screen.DepositBank.route) {
+            DepositBankScreen(walletViewModel, onBackClick = { navController.popBackStack() })
+        }
+        composable(Screen.DepositCard.route) {
+            DepositCardScreen(walletViewModel, onBackClick = { navController.popBackStack() })
+        }
+        composable(Screen.DepositCrypto.route) {
+            DepositCryptoScreen(walletViewModel, onBackClick = { navController.popBackStack() })
         }
 
         composable(Screen.Withdraw.route) {
             WithdrawScreen(
                 viewModel = walletViewModel,
-                onBackClick = { navController.popBackStack() }
+                onBackClick = { navController.popBackStack() },
+                onMpesaClick = { navController.navigate(Screen.WithdrawMpesa.route) },
+                onCardClick = { navController.navigate(Screen.WithdrawCard.route) },
+                onAddPaymentMethodClick = { navController.navigate(Screen.AddPaymentMethod.route) }
+            )
+        }
+        composable(Screen.WithdrawMpesa.route) {
+            WithdrawScreen(
+                viewModel = walletViewModel,
+                onBackClick = { navController.popBackStack() },
+                method = com.example.novaplustrader.ui.screens.wallet.models.WithdrawMethod.MPESA
+            )
+        }
+        composable(Screen.WithdrawCard.route) {
+            WithdrawScreen(
+                viewModel = walletViewModel,
+                onBackClick = { navController.popBackStack() },
+                method = com.example.novaplustrader.ui.screens.wallet.models.WithdrawMethod.CARD
+            )
+        }
+        composable(Screen.AddPaymentMethod.route) {
+            AddPaymentMethodScreen(
+                onBackClick = { navController.popBackStack() },
+                onSelectMpesa = { navController.navigate(Screen.WithdrawMpesa.route) },
+                onSelectCard = { navController.navigate(Screen.WithdrawCard.route) }
             )
         }
 

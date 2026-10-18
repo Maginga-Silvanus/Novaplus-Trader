@@ -21,13 +21,15 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
@@ -37,6 +39,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -53,7 +58,6 @@ import com.example.novaplustrader.ui.components.SuccessAnimation
 import com.example.novaplustrader.ui.model.Currency
 import com.example.novaplustrader.ui.theme.BackgroundDark
 import com.example.novaplustrader.ui.theme.ElectricLime
-import com.example.novaplustrader.ui.theme.ElectricLimeSurface
 import com.example.novaplustrader.ui.theme.FinancialGreen
 import com.example.novaplustrader.ui.theme.FinancialRed
 import com.example.novaplustrader.ui.theme.OverlayDark
@@ -73,7 +77,6 @@ fun SendMoneyScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
-    // Request runtime notification permission on launch
     val notifPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { _ -> }
@@ -90,7 +93,6 @@ fun SendMoneyScreen(
             .background(BackgroundDark)
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // Top Bar
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -121,7 +123,6 @@ fun SendMoneyScreen(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(bottom = 100.dp, start = 16.dp, end = 16.dp)
             ) {
-                // QR Scanner Shortcut Card
                 item {
                     QRActionCard(
                         title = "Scan QR to Pay",
@@ -130,7 +131,7 @@ fun SendMoneyScreen(
                     )
                 }
 
-                // Send Lookup Method Choice
+                // Send Lookup Method Choice (Selectable Dropdown)
                 item {
                     Spacer(modifier = Modifier.height(18.dp))
                     Text(
@@ -143,40 +144,49 @@ fun SendMoneyScreen(
 
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    val lookupMethods = listOf(
+                    val lookupMethods = mapOf(
                         "EMAIL" to "Email Address",
                         "WALLET_CODE" to "Wallet / BTC Code",
                         "PHONE_KYC" to "KYC Phone No."
                     )
+                    var isLookupExpanded by remember { mutableStateOf(false) }
+                    val currentLookupLabel = lookupMethods[uiState.sendLookupMethod] ?: "Email Address"
 
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        lookupMethods.forEach { (code, label) ->
-                            val isSelected = code == uiState.sendLookupMethod
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(if (isSelected) ElectricLimeSurface else SurfaceDarkCard)
-                                    .border(1.dp, if (isSelected) ElectricLime else SurfaceBorder, RoundedCornerShape(12.dp))
-                                    .clickable { viewModel.selectSendLookupMethod(code) }
-                                    .padding(vertical = 10.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = label,
-                                    color = if (isSelected) ElectricLime else TextPrimary,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(SurfaceDarkCard)
+                                .border(1.dp, SurfaceBorder, RoundedCornerShape(16.dp))
+                                .clickable { isLookupExpanded = true }
+                                .padding(16.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(text = currentLookupLabel, color = ElectricLime, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                            Icon(imageVector = Icons.Default.KeyboardArrowDown, contentDescription = "Select", tint = ElectricLime)
+                        }
+
+                        DropdownMenu(
+                            expanded = isLookupExpanded,
+                            onDismissRequest = { isLookupExpanded = false },
+                            modifier = Modifier.background(SurfaceDarkCard)
+                        ) {
+                            lookupMethods.forEach { (code, label) ->
+                                DropdownMenuItem(
+                                    text = { Text(label, color = if (code == uiState.sendLookupMethod) ElectricLime else TextPrimary, fontWeight = if (code == uiState.sendLookupMethod) FontWeight.Bold else FontWeight.Normal) },
+                                    onClick = {
+                                        viewModel.selectSendLookupMethod(code)
+                                        isLookupExpanded = false
+                                    }
                                 )
                             }
                         }
                     }
                 }
 
-                // Recipient Wallet Target Choice
+                // Recipient Wallet Target Choice (Selectable Dropdown)
                 item {
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
@@ -189,46 +199,43 @@ fun SendMoneyScreen(
 
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        val isUserWallet = uiState.recipientWalletType == "USER_WALLET"
-                        Box(
+                    val targetWallets = mapOf(
+                        "USER_WALLET" to "User Main Wallet",
+                        "BITCOIN_WALLET" to "Crypto / BTC Wallet"
+                    )
+                    var isTargetExpanded by remember { mutableStateOf(false) }
+                    val currentTargetLabel = targetWallets[uiState.recipientWalletType] ?: "User Main Wallet"
+
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        Row(
                             modifier = Modifier
-                                .weight(1f)
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(if (isUserWallet) ElectricLimeSurface else SurfaceDarkCard)
-                                .border(1.dp, if (isUserWallet) ElectricLime else SurfaceBorder, RoundedCornerShape(12.dp))
-                                .clickable { viewModel.selectRecipientWalletType("USER_WALLET") }
-                                .padding(vertical = 12.dp),
-                            contentAlignment = Alignment.Center
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(SurfaceDarkCard)
+                                .border(1.dp, SurfaceBorder, RoundedCornerShape(16.dp))
+                                .clickable { isTargetExpanded = true }
+                                .padding(16.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(
-                                text = "User Main Wallet",
-                                color = if (isUserWallet) ElectricLime else TextPrimary,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold
-                            )
+                            Text(text = currentTargetLabel, color = ElectricLime, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                            Icon(imageVector = Icons.Default.KeyboardArrowDown, contentDescription = "Select", tint = ElectricLime)
                         }
 
-                        val isBtcWallet = uiState.recipientWalletType == "BITCOIN_WALLET"
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(if (isBtcWallet) ElectricLimeSurface else SurfaceDarkCard)
-                                .border(1.dp, if (isBtcWallet) ElectricLime else SurfaceBorder, RoundedCornerShape(12.dp))
-                                .clickable { viewModel.selectRecipientWalletType("BITCOIN_WALLET") }
-                                .padding(vertical = 12.dp),
-                            contentAlignment = Alignment.Center
+                        DropdownMenu(
+                            expanded = isTargetExpanded,
+                            onDismissRequest = { isTargetExpanded = false },
+                            modifier = Modifier.background(SurfaceDarkCard)
                         ) {
-                            Text(
-                                text = "Crypto / BTC Wallet",
-                                color = if (isBtcWallet) ElectricLime else TextPrimary,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold
-                            )
+                            targetWallets.forEach { (code, label) ->
+                                DropdownMenuItem(
+                                    text = { Text(label, color = if (code == uiState.recipientWalletType) ElectricLime else TextPrimary, fontWeight = if (code == uiState.recipientWalletType) FontWeight.Bold else FontWeight.Normal) },
+                                    onClick = {
+                                        viewModel.selectRecipientWalletType(code)
+                                        isTargetExpanded = false
+                                    }
+                                )
+                            }
                         }
                     }
                 }
@@ -290,11 +297,7 @@ fun SendMoneyScreen(
                                 modifier = Modifier.size(16.dp)
                             )
                             Text(
-                                text = if (uiState.recipientName.isBlank()) {
-                                    "Recipient: ${uiState.recipientId}"
-                                } else {
-                                    "Recipient: ${uiState.recipientName} (${uiState.recipientId})"
-                                },
+                                text = "Recipient Verified: ${uiState.recipientId}",
                                 color = FinancialGreen,
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.SemiBold

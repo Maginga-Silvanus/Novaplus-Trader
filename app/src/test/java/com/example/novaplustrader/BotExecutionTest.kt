@@ -1,5 +1,6 @@
 package com.example.novaplustrader
 
+import com.example.novaplustrader.data.remote.BotExecutionServiceImpl
 import com.example.novaplustrader.domain.model.bot.BotActivityLogModel
 import com.example.novaplustrader.domain.model.bot.BotActivityType
 import com.example.novaplustrader.domain.model.bot.BotPerformanceModel
@@ -12,6 +13,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.flow.first
 
 class BotExecutionTest {
 
@@ -71,5 +74,22 @@ class BotExecutionTest {
         assertEquals("Bot Started", log.type.label)
         assertNotNull(log.timestamp)
         assertTrue(log.message.contains("started"))
+    }
+
+    @Test
+    fun unconfiguredBotBackendDoesNotReturnMockExecutionSuccess() = runBlocking {
+        val service = BotExecutionServiceImpl()
+        val bot = service.observeBot("bot_test").value
+
+        val start = service.requestStartBot("bot_test", "idempotency-key", null)
+        val stop = service.requestStopBot("bot_test", "idempotency-key")
+        val config = service.updateBotConfiguration(bot)
+
+        assertTrue(start.isFailure)
+        assertTrue(stop.isFailure)
+        assertTrue(config.isFailure)
+        assertTrue(service.observeActivityLogs("bot_test").first().isEmpty())
+        assertEquals(TradingBotStatus.STOPPED, bot.status)
+        assertEquals(0, service.observePerformance("bot_test").first().totalTrades)
     }
 }

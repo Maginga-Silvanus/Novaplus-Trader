@@ -28,11 +28,20 @@ class ResponsibleGamingTest {
 
     @Test
     fun testResponsibleGamingProfileEligibility() {
-        val normalProfile = ResponsibleGamingProfile()
+        val unverifiedProfile = ResponsibleGamingProfile()
+        assertFalse(unverifiedProfile.isEligible)
+
+        val normalProfile = ResponsibleGamingProfile(
+            eligibilityStatus = GamingEligibilityStatus.NORMAL,
+            ageVerified = true,
+            jurisdictionAllowed = true
+        )
         assertTrue(normalProfile.isEligible)
 
         val selfExcludedProfile = ResponsibleGamingProfile(
             eligibilityStatus = GamingEligibilityStatus.SELF_EXCLUDED,
+            ageVerified = true,
+            jurisdictionAllowed = true,
             activeExclusion = SelfExclusionModel(
                 exclusionId = "excl_001",
                 period = ExclusionPeriod.SEVEN_DAYS,

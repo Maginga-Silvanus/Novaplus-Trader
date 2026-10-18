@@ -24,6 +24,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.CreditCard
+import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
@@ -33,6 +35,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -69,9 +72,27 @@ import com.example.novaplustrader.ui.util.Formatters
 fun WithdrawScreen(
     viewModel: WalletViewModel,
     onBackClick: () -> Unit,
+    onMpesaClick: () -> Unit = {},
+    onCardClick: () -> Unit = {},
+    onAddPaymentMethodClick: () -> Unit = {},
+    method: WithdrawMethod? = null,
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    LaunchedEffect(method) {
+        method?.let(viewModel::selectWithdrawMethod)
+    }
+
+    if (method == null) {
+        WithdrawMethodPicker(
+            onBackClick = onBackClick,
+            onMpesaClick = onMpesaClick,
+            onCardClick = onCardClick,
+            onAddPaymentMethodClick = onAddPaymentMethodClick,
+            modifier = modifier
+        )
+        return
+    }
 
     Box(
         modifier = modifier
@@ -94,7 +115,7 @@ fun WithdrawScreen(
                 )
 
                 Text(
-                    text = "Withdraw TEST Funds",
+                    text = "Withdraw",
                     color = TextPrimary,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold
@@ -113,7 +134,7 @@ fun WithdrawScreen(
                 // Withdrawal Method Selection
                 item {
                     Text(
-                        text = "TEST WITHDRAWAL ONLY",
+                        text = "WITHDRAWAL METHOD",
                         color = TextMuted,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
@@ -122,46 +143,17 @@ fun WithdrawScreen(
 
                     Spacer(modifier = Modifier.height(10.dp))
 
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        listOf(WithdrawMethod.MPESA).forEach { method ->
-                            val isSelected = method == uiState.selectedWithdrawMethod
-                            val borderColor = if (isSelected) ElectricLime else SurfaceBorder
-
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(16.dp))
-                                    .background(SurfaceDarkCard)
-                                    .border(1.dp, borderColor, RoundedCornerShape(16.dp))
-                                    .clickable { viewModel.selectWithdrawMethod(method) }
-                                    .padding(14.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = method.title,
-                                        color = if (isSelected) ElectricLime else TextPrimary,
-                                        fontSize = 15.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                    Spacer(modifier = Modifier.height(2.dp))
-                                    Text(
-                                        text = method.description,
-                                        color = TextMuted,
-                                        fontSize = 12.sp
-                                    )
-                                }
-
-                                Text(
-                                    text = method.feeText,
-                                    color = FinancialGreen,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.padding(start = 8.dp)
-                                )
-                            }
-                        }
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(SurfaceDarkCard)
+                            .border(1.dp, ElectricLime, RoundedCornerShape(16.dp))
+                            .padding(14.dp)
+                    ) {
+                        Text(uiState.selectedWithdrawMethod.title, color = ElectricLime, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(uiState.selectedWithdrawMethod.description, color = TextMuted, fontSize = 12.sp)
                     }
                 }
 
@@ -170,7 +162,7 @@ fun WithdrawScreen(
                     when (uiState.selectedWithdrawMethod) {
                         WithdrawMethod.MPESA -> {
                             Text(
-                                text = "TEST WITHDRAWAL · This only reduces your simulated balance. No payout or transfer is sent.",
+                                text = "Requests stay pending until a payout provider confirms them. No balance is changed here.",
                                 color = ElectricLime,
                                 fontSize = 12.sp,
                                 modifier = Modifier.padding(vertical = 14.dp)
@@ -508,7 +500,7 @@ fun WithdrawScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "TEST WITHDRAWAL AMOUNT",
+                            text = "WITHDRAWAL AMOUNT",
                             color = TextMuted,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
@@ -588,14 +580,14 @@ fun WithdrawScreen(
             val totalDeduction = withdrawAmt + feeAmt
 
             ConfirmationSheet(
-                title = "Confirm TEST Withdrawal",
+                title = "Confirm withdrawal request",
                 details = listOf(
-                    "Mode" to "PAPER MONEY · No payout is sent",
                     "Withdrawal Amount" to Formatters.formatCurrency(withdrawAmt, uiState.selectedCurrency),
                     "Estimated Fee" to Formatters.formatCurrency(feeAmt, uiState.selectedCurrency),
-                    "Total Deduction" to Formatters.formatCurrency(totalDeduction, uiState.selectedCurrency)
+                    "Estimated Total" to Formatters.formatCurrency(totalDeduction, uiState.selectedCurrency),
+                    "Status" to "Pending provider confirmation; balance unchanged"
                 ),
-                confirmButtonText = "Record TEST Withdrawal",
+                confirmButtonText = "Submit request",
                 isLoading = uiState.isLoading,
                 onConfirm = { viewModel.executeTestWithdrawal() },
                 onDismiss = { viewModel.closeWithdrawConfirmSheet() }
@@ -701,11 +693,147 @@ fun WithdrawScreen(
             ) {
                 if (tx != null) {
                     SuccessAnimation(
-                        title = "TEST Withdrawal Recorded",
-                        subtitle = "Deducted ${Formatters.formatCurrency(tx.amount, tx.currency)} in PAPER MONEY. No payout was sent.",
+                        title = "Withdrawal request submitted",
+                        subtitle = "Your request is pending provider confirmation. No payout has been sent.",
                         onDoneClick = { viewModel.clearCompletedTransaction() }
                     )
                 }
+            }
+        }
+    }
+}
+
+@Composable
+fun WithdrawMethodPicker(
+    onBackClick: () -> Unit,
+    onMpesaClick: () -> Unit,
+    onCardClick: () -> Unit,
+    onAddPaymentMethodClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(BackgroundDark)
+    ) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconActionButton(
+                    icon = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "Back",
+                    onClick = onBackClick
+                )
+                Text(
+                    text = "Withdraw",
+                    color = TextPrimary,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.size(40.dp))
+            }
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Text(
+                    text = "Select withdrawal destination:",
+                    color = TextMuted,
+                    fontSize = 14.sp
+                )
+
+                // M-Pesa Option
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(SurfaceDarkCard)
+                        .clickable(onClick = onMpesaClick)
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(48.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(ElectricLime.copy(alpha = 0.1f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.PhoneAndroid,
+                            contentDescription = null,
+                            tint = ElectricLime
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "M-Pesa Mobile Money",
+                            color = TextPrimary,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "Instant transfer to your Safaricom wallet",
+                            color = TextMuted,
+                            fontSize = 12.sp
+                        )
+                    }
+                }
+
+                // Card Option
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(SurfaceDarkCard)
+                        .clickable(onClick = onCardClick)
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(48.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(ElectricLime.copy(alpha = 0.1f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CreditCard,
+                            contentDescription = null,
+                            tint = ElectricLime
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Credit / Debit Card",
+                            color = TextPrimary,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "Withdraw to Visa or Mastercard",
+                            color = TextMuted,
+                            fontSize = 12.sp
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                PrimaryButton(
+                    text = "ADD NEW PAYMENT METHOD",
+                    onClick = onAddPaymentMethodClick
+                )
             }
         }
     }

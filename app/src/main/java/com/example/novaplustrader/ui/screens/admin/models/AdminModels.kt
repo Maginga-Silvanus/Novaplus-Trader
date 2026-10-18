@@ -9,6 +9,23 @@ enum class AdminRole(val label: String) {
     READ_ONLY("Read Only")
 }
 
+enum class AdminArea {
+    GENERAL,
+    OPERATIONS,
+    SUPPORT,
+    COMPLIANCE
+}
+
+fun AdminRole.canAccess(area: AdminArea): Boolean = when (this) {
+    AdminRole.SUPER_ADMIN, AdminRole.ADMIN, AdminRole.READ_ONLY -> true
+    AdminRole.SUPPORT -> area == AdminArea.SUPPORT
+    AdminRole.OPERATIONS -> area == AdminArea.OPERATIONS
+    AdminRole.COMPLIANCE -> area == AdminArea.COMPLIANCE
+}
+
+val AdminRole.isViewOnly: Boolean
+    get() = this == AdminRole.READ_ONLY
+
 enum class AdminAccessState {
     AUTHORIZED,
     ACCESS_DENIED,

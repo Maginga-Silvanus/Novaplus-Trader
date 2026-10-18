@@ -14,11 +14,10 @@ import com.example.novaplustrader.ui.model.TransactionUiModel
 import com.example.novaplustrader.ui.screens.wallet.models.DepositMethod
 import com.example.novaplustrader.ui.screens.wallet.models.WithdrawMethod
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.StateFlow
 
 interface WalletRepository {
-    fun observeBalances(): StateFlow<Map<Currency, Double>>
-    fun observeTransactions(): StateFlow<List<TransactionUiModel>>
+    fun observeBalances(): Flow<Map<Currency, Double>>
+    fun observeTransactions(): Flow<List<TransactionUiModel>>
     fun observeTransactionById(id: String): Flow<TransactionUiModel?>
 
     fun observeWalletBalanceModel(walletId: String): Flow<WalletBalanceModel>

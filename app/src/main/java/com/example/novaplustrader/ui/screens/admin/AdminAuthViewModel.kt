@@ -28,6 +28,7 @@ class AdminAuthViewModel(
 
     init {
         observeAuthState()
+        verifySession()
     }
 
     private fun observeAuthState() {

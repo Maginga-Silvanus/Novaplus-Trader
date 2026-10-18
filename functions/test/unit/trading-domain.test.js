@@ -3,6 +3,7 @@ const assert = require("node:assert/strict");
 const {
   applyIdempotentPaperTrade,
   applyIdempotentTestWalletOperation,
+  ASSETS,
   authenticatedUid,
   calculateFeeMinorUnits,
   createMainWallet,
@@ -97,8 +98,16 @@ test("initial test funding grants once, preserves existing cash, and defers unap
 });
 
 test("validates supported pairs, direction-specific denomination, amount and fresh quote", () => {
+  assert.deepEqual(
+    [...ASSETS].sort(),
+    ["ADA", "BNB", "BTC", "DOGE", "ETH", "LTC", "SOL", "XRP"]
+  );
   assert.throws(() => validateTradeRequest(buyRequest("short")));
-  assert.throws(() => validateTradeRequest(buyRequest("valid-idempotency-key", { asset: "DOGE" })));
+  assert.doesNotThrow(() => validateTradeRequest(buyRequest("valid-idempotency-key", {
+    asset: "DOGE",
+    pair: "DOGE/USDT",
+  })));
+  assert.throws(() => validateTradeRequest(buyRequest("valid-idempotency-key", { asset: "SHIB", pair: "SHIB/USDT" })));
   assert.throws(() => validateTradeRequest(buyRequest("valid-idempotency-key", { pair: "BTC/USD" })));
   assert.throws(() => validateTradeRequest(buyRequest("valid-idempotency-key", { amount: 0 })));
   assert.throws(() => validateTradeRequest(buyRequest("valid-idempotency-key", { amountDenomination: "BTC" })));

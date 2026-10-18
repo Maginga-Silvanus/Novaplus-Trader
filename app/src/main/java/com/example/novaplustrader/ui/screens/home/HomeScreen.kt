@@ -142,20 +142,6 @@ fun HomeScreen(
                             todayChangePercentage = uiState.todayChangePercentage,
                             onCurrencySelected = viewModel::selectCurrency
                         )
-                        Text(
-                            text = "TEST FUNDS · Paper balances only · separate from your Bitcoin/crypto portfolio",
-                            color = TextMuted,
-                            fontSize = 10.sp,
-                            modifier = Modifier.padding(start = 4.dp, top = 6.dp)
-                        )
-                        uiState.cryptoPortfolioError?.let { error ->
-                            Text(
-                                text = "Crypto portfolio: $error",
-                                color = com.example.novaplustrader.ui.theme.FinancialRed,
-                                fontSize = 11.sp,
-                                modifier = Modifier.padding(start = 4.dp, top = 6.dp)
-                            )
-                        }
                     }
                 }
 
@@ -198,56 +184,6 @@ fun HomeScreen(
                             label = "Receive",
                             icon = Icons.Default.ArrowUpward,
                             onClick = onNavigateToReceive
-                        )
-                    }
-                }
-
-                // Feature Channels & Products
-                item {
-                    Spacer(modifier = Modifier.height(18.dp))
-                    Text(
-                        text = "FEATURE CHANNELS & SUITE",
-                        color = TextMuted,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 1.sp,
-                        modifier = Modifier.padding(horizontal = 24.dp, vertical = 4.dp)
-                    )
-
-                    Column(
-                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        FeatureChannelCard(
-                            title = "Binary Trading",
-                            subtitle = "Options trading with live price charts & 88% payout",
-                            badgeText = "LIVE TRADING",
-                            icon = Icons.AutoMirrored.Filled.ShowChart,
-                            onClick = onNavigateToTrade
-                        )
-
-                        FeatureChannelCard(
-                            title = "Nova Trading Bot",
-                            subtitle = "Automated algorithmic trading strategy execution",
-                            badgeText = "BOT ENGINE",
-                            icon = Icons.Default.Android,
-                            onClick = onNavigateToTradingBot
-                        )
-
-                        FeatureChannelCard(
-                            title = "Casino Spin Demo",
-                            subtitle = "Simulated spinning wheel game using Demo Credits",
-                            badgeText = "DEMO GAME",
-                            icon = Icons.Default.Casino,
-                            onClick = onNavigateToCasinoSpin
-                        )
-
-                        FeatureChannelCard(
-                            title = "Sportsbook Demo",
-                            subtitle = "Live sports match odds & bet slip previews",
-                            badgeText = "DEMO SPORTS",
-                            icon = Icons.Default.SportsSoccer,
-                            onClick = onNavigateToBetting
                         )
                     }
                 }

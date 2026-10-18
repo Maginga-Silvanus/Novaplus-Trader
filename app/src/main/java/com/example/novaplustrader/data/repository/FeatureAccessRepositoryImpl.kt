@@ -7,6 +7,7 @@ import com.example.novaplustrader.domain.model.access.EligibilityStatus
 import com.example.novaplustrader.domain.model.access.FeatureAccessModel
 import com.example.novaplustrader.domain.model.access.FeatureConfiguration
 import com.example.novaplustrader.domain.model.access.getStandardUserMessage
+import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -16,7 +17,8 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 class FeatureAccessRepositoryImpl(
-    private val service: FeatureAccessService = FeatureAccessServiceImpl()
+    private val service: FeatureAccessService = FeatureAccessServiceImpl(),
+    private val auth: FirebaseAuth = FirebaseAuth.getInstance()
 ) : FeatureAccessRepository {
 
     private val scope = CoroutineScope(Dispatchers.Default)
@@ -33,7 +35,7 @@ class FeatureAccessRepositoryImpl(
 
     init {
         scope.launch {
-            service.getAllEligibility("usr_9901").collect { map ->
+            service.getAllEligibility(auth.currentUser?.uid.orEmpty()).collect { map ->
                 _accessMap.value = map
             }
         }

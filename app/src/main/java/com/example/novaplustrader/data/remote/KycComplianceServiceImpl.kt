@@ -5,7 +5,6 @@ import com.example.novaplustrader.domain.model.compliance.KycReviewDecision
 import com.example.novaplustrader.domain.model.compliance.KycStatus
 import com.example.novaplustrader.domain.model.compliance.KycVerificationRequest
 import com.example.novaplustrader.domain.model.compliance.RiskStatus
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -13,8 +12,8 @@ import kotlinx.coroutines.flow.asStateFlow
 
 class KycComplianceServiceImpl : KycComplianceService {
 
-    private val _kycStatus = MutableStateFlow(KycStatus.VERIFIED)
-    private val _riskStatus = MutableStateFlow(RiskStatus.NORMAL)
+    private val _kycStatus = MutableStateFlow(KycStatus.NOT_STARTED)
+    private val _riskStatus = MutableStateFlow(RiskStatus.UNKNOWN)
 
     private val _requirements = MutableStateFlow(
         listOf(
@@ -24,7 +23,7 @@ class KycComplianceServiceImpl : KycComplianceService {
                 title = "Personal Information",
                 description = "Full legal name and date of birth",
                 required = true,
-                status = "VERIFIED"
+                status = "PENDING"
             ),
             KycRequirement(
                 requirementId = "req_02",
@@ -32,7 +31,7 @@ class KycComplianceServiceImpl : KycComplianceService {
                 title = "Government Identification Document",
                 description = "Valid Passport, National ID, or Driver's License",
                 required = true,
-                status = "VERIFIED"
+                status = "PENDING"
             ),
             KycRequirement(
                 requirementId = "req_03",
@@ -40,7 +39,7 @@ class KycComplianceServiceImpl : KycComplianceService {
                 title = "Liveness Verification / Selfie",
                 description = "Selfie photograph for facial match verification",
                 required = true,
-                status = "VERIFIED"
+                status = "PENDING"
             )
         )
     )
@@ -50,10 +49,9 @@ class KycComplianceServiceImpl : KycComplianceService {
     override fun observeRequirements(userId: String): Flow<List<KycRequirement>> = _requirements.asStateFlow()
 
     override suspend fun submitKycVerification(request: KycVerificationRequest): Result<KycStatus> {
-        delay(900) // Backend validation & provider verification queue dispatch
-
-        _kycStatus.value = KycStatus.UNDER_REVIEW
-        return Result.success(KycStatus.UNDER_REVIEW)
+        return Result.failure(
+            IllegalStateException("KYC document storage and verification are not configured. Nothing was submitted.")
+        )
     }
 
     override suspend fun reviewKycSubmission(
@@ -61,22 +59,8 @@ class KycComplianceServiceImpl : KycComplianceService {
         decision: KycReviewDecision,
         rejectionReason: String?
     ): Result<Boolean> {
-        delay(600) // Backend compliance officer review commit
-
-        when (decision) {
-            KycReviewDecision.APPROVE -> {
-                _kycStatus.value = KycStatus.VERIFIED
-                _riskStatus.value = RiskStatus.NORMAL
-            }
-            KycReviewDecision.REJECT -> {
-                _kycStatus.value = KycStatus.REJECTED
-                _riskStatus.value = RiskStatus.REVIEW_REQUIRED
-            }
-            KycReviewDecision.REQUEST_MORE_INFORMATION -> {
-                _kycStatus.value = KycStatus.REQUIRES_UPDATE
-            }
-        }
-
-        return Result.success(true)
+        return Result.failure(
+            IllegalStateException("The trusted KYC review backend is not configured. No review decision was saved.")
+        )
     }
 }

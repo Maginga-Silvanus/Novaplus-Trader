@@ -213,12 +213,16 @@ class CryptoWalletRepositoryImpl(
     }
 
     private companion object {
-        val SUPPORTED_ASSETS = setOf("BTC", "ETH", "SOL", "BNB", "USDT", "USDC")
+        val SUPPORTED_ASSETS = setOf("BTC", "ETH", "SOL", "BNB", "XRP", "ADA", "DOGE", "LTC", "USDT", "USDC")
         val ASSET_SCALES = mapOf(
             "BTC" to 100_000_000.0,
             "ETH" to 100_000_000.0,
             "SOL" to 1_000_000_000.0,
             "BNB" to 100_000_000.0,
+            "XRP" to 1_000_000.0,
+            "ADA" to 1_000_000.0,
+            "DOGE" to 1_000_000.0,
+            "LTC" to 100_000_000.0,
             "USDT" to 1_000_000.0,
             "USDC" to 1_000_000.0
         )

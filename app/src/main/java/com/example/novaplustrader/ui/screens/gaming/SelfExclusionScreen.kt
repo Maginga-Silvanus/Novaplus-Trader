@@ -17,8 +17,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -36,6 +34,7 @@ import androidx.compose.ui.unit.sp
 import com.example.novaplustrader.domain.model.gaming.ExclusionPeriod
 import com.example.novaplustrader.ui.components.ConfirmationSheet
 import com.example.novaplustrader.ui.components.IconActionButton
+import com.example.novaplustrader.ui.components.AccessibleDropdownSelector
 import com.example.novaplustrader.ui.components.PrimaryButton
 import com.example.novaplustrader.ui.components.SuccessAnimation
 import com.example.novaplustrader.ui.theme.BackgroundDark
@@ -103,31 +102,13 @@ fun SelfExclusionScreen(
 
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        items(ExclusionPeriod.entries) { period ->
-                            val isSelected = period == uiState.selectedExclusionPeriod
-                            val bg = if (isSelected) ElectricLimeSurface else SurfaceDarkCard
-                            val border = if (isSelected) ElectricLime else SurfaceBorder
-
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(20.dp))
-                                    .background(bg)
-                                    .border(1.dp, border, RoundedCornerShape(20.dp))
-                                    .clickable { viewModel.selectExclusionPeriod(period) }
-                                    .padding(horizontal = 16.dp, vertical = 8.dp)
-                            ) {
-                                Text(
-                                    text = period.label,
-                                    color = if (isSelected) ElectricLime else TextPrimary,
-                                    fontSize = 12.sp,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
-                                )
-                            }
-                        }
-                    }
+                    AccessibleDropdownSelector(
+                        label = "Exclusion duration",
+                        options = ExclusionPeriod.entries,
+                        selectedOption = uiState.selectedExclusionPeriod,
+                        optionLabel = { it.label },
+                        onOptionSelected = viewModel::selectExclusionPeriod
+                    )
                 }
 
                 // Consequences Warning Box

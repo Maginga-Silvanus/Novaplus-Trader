@@ -30,7 +30,7 @@ data class ResponsibleGamingLimits(
 
 data class SelfExclusionModel(
     val exclusionId: String,
-    val userId: String = "usr_9901",
+    val userId: String = "",
     val period: ExclusionPeriod,
     val startTime: String,
     val endTime: String? = null,
@@ -40,7 +40,7 @@ data class SelfExclusionModel(
 
 data class GamingSessionModel(
     val sessionId: String,
-    val userId: String = "usr_9901",
+    val userId: String = "",
     val feature: String, // "CASINO" or "BETTING"
     val startTime: String,
     val endTime: String? = null,
@@ -50,7 +50,7 @@ data class GamingSessionModel(
 
 data class GamingActivityModel(
     val activityId: String,
-    val userId: String = "usr_9901",
+    val userId: String = "",
     val feature: String,
     val demoStakeMinorUnits: Long,
     val demoResultMinorUnits: Long,
@@ -62,13 +62,13 @@ data class GamingActivityModel(
 }
 
 data class ResponsibleGamingProfile(
-    val userId: String = "usr_9901",
-    val eligibilityStatus: GamingEligibilityStatus = GamingEligibilityStatus.NORMAL,
+    val userId: String = "",
+    val eligibilityStatus: GamingEligibilityStatus = GamingEligibilityStatus.LIMITED,
     val limits: ResponsibleGamingLimits = ResponsibleGamingLimits(),
     val activeExclusion: SelfExclusionModel? = null,
     val activeSession: GamingSessionModel? = null,
-    val ageVerified: Boolean = true,
-    val jurisdictionAllowed: Boolean = true
+    val ageVerified: Boolean = false,
+    val jurisdictionAllowed: Boolean = false
 ) {
     val isEligible: Boolean
         get() = eligibilityStatus == GamingEligibilityStatus.NORMAL &&

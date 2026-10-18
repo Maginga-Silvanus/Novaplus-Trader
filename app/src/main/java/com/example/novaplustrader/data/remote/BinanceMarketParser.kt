@@ -16,7 +16,11 @@ object BinanceMarketParser {
         "BTC" to "Bitcoin",
         "ETH" to "Ethereum",
         "SOL" to "Solana",
-        "BNB" to "BNB"
+        "BNB" to "BNB",
+        "XRP" to "XRP",
+        "ADA" to "Cardano",
+        "DOGE" to "Dogecoin",
+        "LTC" to "Litecoin"
     )
 
     val supportedSymbols = supportedAssets.keys.map { "${it}USDT" }.toSet()

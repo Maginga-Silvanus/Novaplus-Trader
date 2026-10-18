@@ -10,22 +10,29 @@ import com.example.novaplustrader.domain.model.gaming.ResponsibleGamingProfile
 import com.example.novaplustrader.domain.model.gaming.SelfExclusionModel
 import com.example.novaplustrader.ui.screens.notifications.models.NotificationCategory
 import com.example.novaplustrader.ui.screens.notifications.models.NotificationModel
+import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 
 class ResponsibleGamingRepositoryImpl(
     private val service: ResponsibleGamingService = ResponsibleGamingServiceImpl(),
-    private val notificationRepository: NotificationRepository = NotificationRepositoryImpl()
+    private val notificationRepository: NotificationRepository = NotificationRepositoryImpl(),
+    private val auth: FirebaseAuth = FirebaseAuth.getInstance()
 ) : ResponsibleGamingRepository {
 
-    override fun observeProfile(): StateFlow<ResponsibleGamingProfile> = service.observeProfile("usr_9901")
-    override fun observeActivityLogs(): Flow<List<GamingActivityModel>> = service.observeActivityLogs("usr_9901")
+    private val userId: String
+        get() = auth.currentUser?.uid.orEmpty()
+
+    override fun observeProfile(): StateFlow<ResponsibleGamingProfile> = service.observeProfile(userId)
+    override fun observeActivityLogs(): Flow<List<GamingActivityModel>> = service.observeActivityLogs(userId)
 
     override suspend fun requestSelfExclusion(
         period: ExclusionPeriod,
         reason: String
     ): Result<SelfExclusionModel> {
-        val result = service.requestSelfExclusion("usr_9901", period, reason)
+        val uid = auth.currentUser?.uid
+            ?: return Result.failure(IllegalStateException("Sign in before requesting self-exclusion."))
+        val result = service.requestSelfExclusion(uid, period, reason)
 
         result.onSuccess { exclusion ->
             notificationRepository.saveNotification(
@@ -44,11 +51,15 @@ class ResponsibleGamingRepositoryImpl(
     }
 
     override suspend fun updateLimits(limits: ResponsibleGamingLimits): Result<ResponsibleGamingLimits> {
-        return service.updateLimits("usr_9901", limits)
+        val uid = auth.currentUser?.uid
+            ?: return Result.failure(IllegalStateException("Sign in before updating responsible-gaming limits."))
+        return service.updateLimits(uid, limits)
     }
 
     override suspend fun startGamingSession(feature: String): Result<GamingSessionModel> {
-        return service.startGamingSession("usr_9901", feature)
+        val uid = auth.currentUser?.uid
+            ?: return Result.failure(IllegalStateException("Sign in before starting a gaming session."))
+        return service.startGamingSession(uid, feature)
     }
 
     override suspend fun endGamingSession(sessionId: String): Result<Boolean> {

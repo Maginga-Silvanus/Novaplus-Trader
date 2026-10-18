@@ -131,30 +131,6 @@ fun ReceiveMoneyScreen(
             ) {
                 item {
                     Spacer(modifier = Modifier.height(10.dp))
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(SurfaceDarkCard)
-                            .border(1.dp, SurfaceBorder, RoundedCornerShape(16.dp))
-                            .padding(4.dp),
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        WalletTypeOption(
-                            label = "NovaPay Wallet",
-                            selected = !isBitcoinWallet,
-                            modifier = Modifier.weight(1f),
-                            onClick = { viewModel.selectReceiveWalletType("USER_WALLET") }
-                        )
-                        WalletTypeOption(
-                            label = "Bitcoin",
-                            selected = isBitcoinWallet,
-                            modifier = Modifier.weight(1f),
-                            onClick = { viewModel.selectReceiveWalletType("BITCOIN_WALLET") }
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(16.dp))
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -379,30 +355,6 @@ fun ReceiveMoneyScreen(
         SnackbarHost(
             hostState = snackbarHostState,
             modifier = Modifier.align(Alignment.BottomCenter)
-        )
-    }
-}
-
-@Composable
-private fun WalletTypeOption(
-    label: String,
-    selected: Boolean,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit
-) {
-    Box(
-        modifier = modifier
-            .clip(RoundedCornerShape(12.dp))
-            .background(if (selected) ElectricLimeSurface else SurfaceDarkCard)
-            .clickable(onClick = onClick)
-            .padding(vertical = 12.dp, horizontal = 8.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = label,
-            color = if (selected) ElectricLime else TextMuted,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Bold
         )
     }
 }

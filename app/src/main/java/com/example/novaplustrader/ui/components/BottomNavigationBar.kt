@@ -17,6 +17,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Analytics
+import androidx.compose.material.icons.filled.CurrencyBitcoin
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.ShowChart
@@ -32,6 +33,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.novaplustrader.ui.navigation.Screen
 import com.example.novaplustrader.ui.theme.BackgroundDark
 import com.example.novaplustrader.ui.theme.ElectricLime
@@ -51,8 +53,8 @@ val bottomNavItems = listOf(
     NavItem(Screen.Home.route, "Home", Icons.Default.Home),
     NavItem(Screen.Markets.route, "Markets", Icons.Default.ShowChart),
     NavItem("center_action", "", Icons.Default.Add), // Center prominent +
-    NavItem(Screen.Activity.route, "Activity", Icons.Default.Analytics),
-    NavItem(Screen.Profile.route, "Profile", Icons.Default.Person)
+    NavItem(Screen.Crypto.route, "Crypto", Icons.Default.CurrencyBitcoin),
+    NavItem(Screen.Activity.route, "Activity", Icons.Default.Analytics)
 )
 
 @Composable
@@ -113,6 +115,8 @@ fun BottomNavigationBar(
                             Text(
                                 text = item.title,
                                 color = iconColor,
+                                fontSize = 9.sp,
+                                maxLines = 1,
                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                             )
                         }

@@ -68,7 +68,7 @@ class WalletViewModel(
                 }
             }
         }
-        listOf("BTC", "ETH", "SOL", "BNB").forEach { asset ->
+        listOf("BTC", "ETH", "SOL", "BNB", "XRP", "ADA", "DOGE", "LTC").forEach { asset ->
             viewModelScope.launch {
                 marketDataRepository.observeMarketTicks("$asset/USDT")
                     .catch { error ->
@@ -196,7 +196,7 @@ class WalletViewModel(
                                                 kesLockedBalance = 0.0,
                                                 wallets = listOf(
                                                     WalletUiModel(
-                                                        id = "main-usd",
+                                                        id = "${user.uid}-usd",
                                                         walletId = current.walletId,
                                                         userName = current.userName,
                                                         currency = Currency.USD,
@@ -205,7 +205,7 @@ class WalletViewModel(
                                                         isPrimary = true
                                                     ),
                                                     WalletUiModel(
-                                                        id = "main-kes",
+                                                        id = "${user.uid}-kes",
                                                         walletId = current.walletId,
                                                         userName = current.userName,
                                                         currency = Currency.KES,
@@ -265,9 +265,15 @@ class WalletViewModel(
             }
 
             launch {
-                repository.observeFinancialTransactions().collect { finTxs ->
-                    _uiState.update { it.copy(financialTransactions = finTxs) }
-                }
+                repository.observeFinancialTransactions()
+                    .catch { error ->
+                        _uiState.update {
+                            it.copy(errorMessage = error.localizedMessage ?: "Financial transaction service is unavailable")
+                        }
+                    }
+                    .collect { finTxs ->
+                        _uiState.update { it.copy(financialTransactions = finTxs) }
+                    }
             }
         }
     }
@@ -365,55 +371,32 @@ class WalletViewModel(
         }
         val state = _uiState.value
         val amount = state.depositAmountString.toDoubleOrNull() ?: 0.0
-        val amountMinorUnits = Math.round(amount * 100.0)
-        if (amount <= 0.0 || !amount.isFinite() || amountMinorUnits <= 0L ||
-            kotlin.math.abs(amount * 100.0 - kotlin.math.round(amount * 100.0)) > 1e-8
-        ) {
-            _uiState.update { it.copy(validationError = "Enter a valid TEST funds amount") }
+        if (amount <= 0.0 || !amount.isFinite()) {
+            _uiState.update { it.copy(validationError = "Enter a valid deposit amount") }
             return
         }
-        val idempotencyKey = testWalletOperationKey("DEPOSIT", state.selectedCurrency, amountMinorUnits)
         _uiState.update { it.copy(isDepositConfirmOpen = false, isLoading = true, testWalletNotice = null) }
         viewModelScope.launch {
-            val userId = authRepository.getCurrentUser()?.uid
-            if (userId.isNullOrBlank()) {
-                _uiState.update { it.copy(isLoading = false, errorMessage = "Sign in before requesting a deposit") }
-                return@launch
-            }
-            val result = mainWalletRepository.simulateOperation(
-                operation = "DEPOSIT",
-                currency = state.selectedCurrency,
-                amountMinorUnits = amountMinorUnits,
-                idempotencyKey = idempotencyKey
+            val result = repository.initiateDeposit(
+                method = state.selectedDepositMethod,
+                amount = amount,
+                currency = state.selectedCurrency
             )
-            result.onSuccess { finTx ->
-                clearTestWalletOperationKey(idempotencyKey)
+            result.onSuccess { tx ->
                 _uiState.update {
                     it.copy(
                         isLoading = false,
-                        testWalletNotice = finTx.message,
-                        lastCompletedTransaction = if (finTx.status == "COMPLETED_TEST") {
-                            TransactionUiModel(
-                                id = idempotencyKey,
-                                title = "TEST funds added",
-                                subtitle = finTx.message,
-                                type = TransactionType.DEPOSIT,
-                                amount = amountMinorUnits / 100.0,
-                                currency = state.selectedCurrency,
-                                isPositive = true,
-                                timestamp = "Just now",
-                                status = TransactionStatus.COMPLETED
-                            )
-                        } else null,
-                        errorMessage = if (finTx.status == "COMPLETED_TEST") null else finTx.message
+                        testWalletNotice = "Deposit request recorded as pending. No payment was initiated and no balance was credited.",
+                        lastCompletedTransaction = tx,
+                        errorMessage = null
                     )
                 }
-            }.onFailure { err ->
+            }.onFailure { error ->
                 _uiState.update {
                     it.copy(
                         isLoading = false,
-                        testWalletNotice = err.message ?: "TEST deposit failed",
-                        errorMessage = err.message ?: "TEST deposit failed"
+                        testWalletNotice = error.message ?: "Deposit request could not be recorded",
+                        errorMessage = error.message ?: "Deposit request could not be recorded"
                     )
                 }
             }
@@ -517,90 +500,41 @@ class WalletViewModel(
     fun executeTestWithdrawal() {
         val state = _uiState.value
         val amount = state.withdrawAmountString.toDoubleOrNull() ?: 0.0
-        val amountMinorUnits = Math.round(amount * 100.0)
-        if (!amount.isFinite() || amount <= 0.0 || amountMinorUnits <= 0L ||
-            kotlin.math.abs(amount * 100.0 - kotlin.math.round(amount * 100.0)) > 1e-8
-        ) {
-            _uiState.update { it.copy(validationError = "Enter a valid TEST withdrawal amount") }
+        if (!amount.isFinite() || amount <= 0.0) {
+            _uiState.update { it.copy(validationError = "Enter a valid withdrawal amount") }
             return
         }
-        val idempotencyKey = testWalletOperationKey("WITHDRAWAL", state.selectedCurrency, amountMinorUnits)
         _uiState.update {
             it.copy(isWithdrawConfirmOpen = false, isPinVerificationOpen = false, isLoading = true, testWalletNotice = null)
         }
         viewModelScope.launch {
-            val userId = authRepository.getCurrentUser()?.uid
-            if (userId.isNullOrBlank()) {
-                _uiState.update { it.copy(isLoading = false, securityPin = "", errorMessage = "Sign in before requesting a withdrawal") }
-                return@launch
-            }
-            val result = mainWalletRepository.simulateOperation(
-                operation = "WITHDRAWAL",
+            val result = repository.initiateWithdrawal(
+                method = state.selectedWithdrawMethod,
+                destination = state.withdrawDestination,
+                amount = amount,
                 currency = state.selectedCurrency,
-                amountMinorUnits = amountMinorUnits,
-                idempotencyKey = idempotencyKey
+                securityPin = state.securityPin
             )
-            result.onSuccess { response ->
-                clearTestWalletOperationKey(idempotencyKey)
-                val succeeded = response.status == "COMPLETED_TEST"
+            result.onSuccess { tx ->
                 _uiState.update {
                     it.copy(
                         isLoading = false,
                         securityPin = "",
-                        testWalletNotice = response.message,
-                        errorMessage = if (succeeded) null else response.message,
-                        lastCompletedTransaction = if (succeeded) TransactionUiModel(
-                            id = idempotencyKey,
-                            title = "TEST funds withdrawn",
-                            subtitle = response.message,
-                            type = TransactionType.WITHDRAWAL,
-                            amount = amountMinorUnits / 100.0,
-                            currency = state.selectedCurrency,
-                            isPositive = false,
-                            timestamp = "Just now",
-                            status = TransactionStatus.COMPLETED
-                        ) else null
+                        testWalletNotice = "Withdrawal request recorded as pending. No payout was initiated and no balance was debited.",
+                        errorMessage = null,
+                        lastCompletedTransaction = tx
                     )
                 }
-
-            }.onFailure { err ->
+            }.onFailure { error ->
                 _uiState.update {
                     it.copy(
                         isLoading = false,
                         securityPin = "",
-                        testWalletNotice = err.message ?: "TEST withdrawal failed",
-                        errorMessage = err.message ?: "TEST withdrawal failed"
+                        testWalletNotice = error.message ?: "Withdrawal request could not be recorded",
+                        errorMessage = error.message ?: "Withdrawal request could not be recorded"
                     )
                 }
             }
-        }
-    }
-
-    private fun testWalletOperationKey(operation: String, currency: Currency, amountMinorUnits: Long): String {
-        val fingerprint = "$operation|${currency.name}|$amountMinorUnits"
-        val current = _uiState.value
-        if (current.pendingTestWalletOperationFingerprint == fingerprint) {
-            return current.pendingTestWalletOperationKey
-                ?: error("Pending test wallet operation is missing its idempotency key")
-        }
-        val key = UUID.randomUUID().toString()
-        _uiState.update {
-            it.copy(
-                pendingTestWalletOperationKey = key,
-                pendingTestWalletOperationFingerprint = fingerprint
-            )
-        }
-        return key
-    }
-
-    private fun clearTestWalletOperationKey(key: String) {
-        _uiState.update { current ->
-            if (current.pendingTestWalletOperationKey == key) {
-                current.copy(
-                    pendingTestWalletOperationKey = null,
-                    pendingTestWalletOperationFingerprint = null
-                )
-            } else current
         }
     }
 
@@ -679,10 +613,10 @@ class WalletViewModel(
                 _uiState.update { it.copy(isLoading = false, errorMessage = "Sign in before requesting a transfer") }
                 return@launch
             }
-            val walletId = if (_uiState.value.selectedCurrency == Currency.USD) "w_usd" else "w_kes"
+            val walletId = "wallet-${userId}-${_uiState.value.selectedCurrency.code.lowercase()}"
 
             val req = TransferRequest(
-                idempotencyKey = "idemp_trf_${UUID.randomUUID().toString().take(12)}",
+                idempotencyKey = "idemp_trf_${UUID.randomUUID()}",
                 senderUserId = userId,
                 senderWalletId = walletId,
                 recipientId = _uiState.value.recipientId,
@@ -709,7 +643,7 @@ class WalletViewModel(
 
                 _uiState.update {
                     it.copy(
-                        lastCompletedTransaction = uiTx.takeIf { finTx.status == FinancialTransactionStatus.COMPLETED },
+                        lastCompletedTransaction = uiTx,
                         financialTransactions = (listOf(finTx) + it.financialTransactions)
                             .distinctBy { transaction -> transaction.transactionId }
                             .take(20)

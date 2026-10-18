@@ -1,5 +1,7 @@
 const { randomBytes } = require("node:crypto");
 const admin = require("firebase-admin");
+const { getAuth } = require("firebase-admin/auth");
+const { FieldValue, getFirestore } = require("firebase-admin/firestore");
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const {
   applyTestWalletOperation,
@@ -16,10 +18,17 @@ const {
   validateTradeRequestFields,
   PORTFOLIO_ASSETS,
 } = require("./trading-domain");
+const {
+  createPendingFinancialRecord,
+  financialRequestFingerprint,
+  validateFinancialRequest,
+} = require("./financial-domain");
 
 admin.initializeApp();
-const db = admin.firestore();
-const assetDecimals = { BTC: 8, ETH: 8, SOL: 9, BNB: 8, USDT: 6, USDC: 6 };
+const db = getFirestore();
+const assetDecimals = {
+  BTC: 8, ETH: 8, SOL: 9, BNB: 8, XRP: 6, ADA: 6, DOGE: 6, LTC: 8, USDT: 6, USDC: 6,
+};
 
 function configInteger(name, defaultValue, maximum = Number.MAX_SAFE_INTEGER) {
   const raw = process.env[name];
@@ -51,6 +60,36 @@ function holdingRef(uid, asset) {
   return portfolioRef(uid).collection("holdings").doc(asset.toLowerCase());
 }
 
+function financialRequestRef(uid, idempotencyKey) {
+  return db.collection("users").doc(uid).collection("financialRequests").doc(idempotencyKey);
+}
+
+function financialTransactionRef(uid, idempotencyKey) {
+  return mainWalletRef(uid).collection("transactions").doc(idempotencyKey);
+}
+
+async function resolveInternalRecipient(recipientId, senderUid) {
+  try {
+    let recipient;
+    const value = recipientId.trim();
+    if (value.startsWith("NV-")) {
+      recipient = await getAuth().getUser(value.slice(3));
+    } else if (value.includes("@")) {
+      recipient = await getAuth().getUserByEmail(value);
+    } else if (value.startsWith("+")) {
+      recipient = await getAuth().getUserByPhoneNumber(value);
+    } else {
+      recipient = await getAuth().getUser(value);
+    }
+    if (!recipient.uid || recipient.uid === senderUid) {
+      throw new Error("self transfer");
+    }
+    return recipient.uid;
+  } catch (_) {
+    throw new HttpsError("invalid-argument", "The internal transfer recipient could not be verified.");
+  }
+}
+
 function publicPortfolio(data, holdings) {
   return {
     bitcoinWalletId: data.bitcoinWalletId,
@@ -68,7 +107,7 @@ function storedPortfolio(data) {
     paperTradeFeeBps: config.tradeFeeBps,
     minimumTradeUsdMinorUnits: config.minimumTradeUsdMinorUnits,
     assetSymbols: PORTFOLIO_ASSETS,
-    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    createdAt: FieldValue.serverTimestamp(),
   };
 }
 
@@ -134,7 +173,7 @@ exports.getOrCreateCryptoPortfolio = onCall(async (request) => {
   };
   const ref = portfolioRef(uid);
   const mainRef = mainWalletRef(uid);
-  const id = `BTC-${randomBytes(16).toString("hex").toUpperCase()}`;
+  const id = `BTC-${uid}-${randomBytes(16).toString("hex").toUpperCase()}`;
   const result = await db.runTransaction(async (transaction) => {
     const holdingsRefs = PORTFOLIO_ASSETS.map((asset) => holdingRef(uid, asset));
     const snapshots = await Promise.all([
@@ -176,8 +215,8 @@ exports.getOrCreateCryptoPortfolio = onCall(async (request) => {
       }
       transaction.create(mainRef, {
         ...mainWallet,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
       });
     } else {
       mainWallet = existingMainWallet.data();
@@ -211,7 +250,7 @@ exports.getOrCreateCryptoPortfolio = onCall(async (request) => {
         }
         transaction.update(mainRef, {
           ...mainWallet,
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
         });
       }
     }
@@ -228,7 +267,7 @@ exports.getOrCreateCryptoPortfolio = onCall(async (request) => {
           status: "COMPLETED_TEST",
           testOnly: true,
           kind: "INITIAL_CONFIGURED_TEST_GRANT",
-          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          createdAt: FieldValue.serverTimestamp(),
         });
       }
     }
@@ -244,8 +283,8 @@ exports.getOrCreateCryptoPortfolio = onCall(async (request) => {
           symbol: asset,
           quantityAtomicUnits: 0,
           decimals: assetDecimals[asset],
-          createdAt: admin.firestore.FieldValue.serverTimestamp(),
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          createdAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
         });
       }
     });
@@ -306,12 +345,12 @@ exports.simulateTestWalletOperation = onCall(async (call) => {
       status: outcome.status,
       message: outcome.message,
       testOnly: true,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(),
     };
     if (outcome.status === "COMPLETED_TEST") {
       transaction.update(mainRef, {
         ...outcome.mainWallet,
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
       });
     }
     transaction.create(operationRef, record);
@@ -323,6 +362,59 @@ exports.simulateTestWalletOperation = onCall(async (call) => {
     message: result.message,
     duplicate: result.duplicate === true,
   };
+});
+
+exports.createFinancialRequest = onCall(async (call) => {
+  const uid = requireAuth(call);
+  let request;
+  try {
+    request = validateFinancialRequest(call.data);
+  } catch (error) {
+    throw new HttpsError("invalid-argument", error.message);
+  }
+  if (request.type === "TRANSFER") {
+    request.recipientId = await resolveInternalRecipient(request.recipientId, uid);
+  }
+  const fingerprint = financialRequestFingerprint(request);
+  const requestRef = financialRequestRef(uid, request.idempotencyKey);
+  const transactionRef = financialTransactionRef(uid, request.idempotencyKey);
+  const result = await db.runTransaction(async (transaction) => {
+    const [existingRequest, existingTransaction] = await Promise.all([
+      transaction.get(requestRef),
+      transaction.get(transactionRef),
+    ]);
+    if (existingRequest.exists || existingTransaction.exists) {
+      const existing = existingRequest.exists
+        ? existingRequest.data()
+        : existingTransaction.data();
+      if (existing.requestFingerprint !== fingerprint) {
+        throw new HttpsError(
+          "already-exists",
+          "This idempotency key was already used for another financial request."
+        );
+      }
+      return {
+        ...existing,
+        createdAtMs: existing.createdAt?.toMillis?.() ?? Date.now(),
+        duplicate: true,
+      };
+    }
+
+    const createdAt = FieldValue.serverTimestamp();
+    const record = {
+      ...createPendingFinancialRecord(uid, request, createdAt),
+      requestFingerprint: fingerprint,
+    };
+    transaction.create(requestRef, record);
+    transaction.create(transactionRef, record);
+    return {
+      ...record,
+      createdAtMs: Date.now(),
+      duplicate: false,
+    };
+  });
+  const { createdAt, updatedAt, ...response } = result;
+  return { ...response, createdAtMs: result.createdAtMs || Date.now() };
 });
 
 exports.submitSpotTradeRequest = onCall(async (call) => {
@@ -421,16 +513,16 @@ exports.submitSpotTradeRequest = onCall(async (call) => {
       testOnly: true,
       priceSource: "Binance public spot ticker; USDT treated as USD for test valuation",
       createdAtMs,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(),
     };
     if (status === "FILLED_TEST") {
       transaction.update(mainRef, {
         ...outcome.mainWallet,
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
       });
       transaction.update(holdingsRefs[paperRequest.asset], {
         quantityAtomicUnits: outcome.cryptoBalances[paperRequest.asset],
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
       });
       transaction.create(transactionRef, record);
       transaction.create(mainRef.collection("transactions").doc(`trade-${data.idempotencyKey}`), {
@@ -444,7 +536,7 @@ exports.submitSpotTradeRequest = onCall(async (call) => {
         executionPriceUsd,
         status: "COMPLETED_TEST",
         testOnly: true,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
       });
     }
     transaction.create(requestRef, record);

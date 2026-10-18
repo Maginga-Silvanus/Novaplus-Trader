@@ -39,7 +39,7 @@ import com.example.novaplustrader.ui.theme.TextPrimary
 fun AdminHeaderBar(
     title: String,
     modifier: Modifier = Modifier,
-    role: AdminRole = AdminRole.SUPER_ADMIN,
+    role: AdminRole = AdminRole.READ_ONLY,
     onBackClick: (() -> Unit)? = null,
     onSignOutClick: (() -> Unit)? = null
 ) {

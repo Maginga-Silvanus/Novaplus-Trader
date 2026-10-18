@@ -45,6 +45,7 @@ import androidx.compose.ui.unit.sp
 import com.example.novaplustrader.ui.components.LoadingState
 import com.example.novaplustrader.ui.screens.admin.components.AdminHeaderBar
 import com.example.novaplustrader.ui.screens.admin.components.AdminStatCard
+import com.example.novaplustrader.ui.screens.admin.models.AdminRole
 import com.example.novaplustrader.ui.theme.BackgroundDark
 import com.example.novaplustrader.ui.theme.ElectricLime
 import com.example.novaplustrader.ui.theme.ElectricLimeSurface
@@ -87,7 +88,79 @@ fun AdminDashboardScreen(
             onSignOutClick = onSignOutClick
         )
 
-        if (uiState.isLoading && m == null) {
+        if (uiState.currentRole == AdminRole.SUPPORT ||
+            uiState.currentRole == AdminRole.OPERATIONS ||
+            uiState.currentRole == AdminRole.COMPLIANCE
+        ) {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                item {
+                    Text(
+                        text = "AUTHORIZED WORKSPACE",
+                        color = TextMuted,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.sp
+                    )
+                }
+                when (uiState.currentRole) {
+                    AdminRole.SUPPORT -> item {
+                        AdminNavTile(
+                            "Support Desk",
+                            Icons.Default.SupportAgent,
+                            onNavigateToSupport,
+                            Modifier.fillMaxWidth()
+                        )
+                    }
+                    AdminRole.OPERATIONS -> {
+                        item {
+                            AdminNavTile(
+                                "Wallets & Ledger",
+                                Icons.Default.AccountBalanceWallet,
+                                onNavigateToWallets,
+                                Modifier.fillMaxWidth()
+                            )
+                        }
+                        item {
+                            AdminNavTile(
+                                "Transactions",
+                                Icons.Default.Receipt,
+                                onNavigateToTransactions,
+                                Modifier.fillMaxWidth()
+                            )
+                        }
+                        item {
+                            AdminNavTile(
+                                "Trading Desk",
+                                Icons.Default.Analytics,
+                                onNavigateToTrading,
+                                Modifier.fillMaxWidth()
+                            )
+                        }
+                        item {
+                            AdminNavTile(
+                                "Trading Bots",
+                                Icons.Default.SmartToy,
+                                onNavigateToBots,
+                                Modifier.fillMaxWidth()
+                            )
+                        }
+                    }
+                    AdminRole.COMPLIANCE -> item {
+                        AdminNavTile(
+                            "KYC & Compliance",
+                            Icons.Default.Badge,
+                            onNavigateToCompliance,
+                            Modifier.fillMaxWidth()
+                        )
+                    }
+                    else -> Unit
+                }
+            }
+        } else if (uiState.isLoading && m == null) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()

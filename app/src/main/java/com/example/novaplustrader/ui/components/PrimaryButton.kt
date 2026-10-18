@@ -38,6 +38,9 @@ fun PrimaryButton(
     isLoading: Boolean = false,
     buttonColor: Color = ElectricLime
 ) {
+    val privilegedActionsEnabled = LocalPrivilegedActionsEnabled.current
+    val actionEnabled = enabled && privilegedActionsEnabled
+
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(
@@ -46,12 +49,12 @@ fun PrimaryButton(
     )
 
     val currentBgColor = when {
-        !enabled -> SurfaceDarkElevated
+        !actionEnabled -> SurfaceDarkElevated
         isPressed -> ElectricLimeDark
         else -> buttonColor
     }
 
-    val currentTextColor = if (!enabled) TextMuted else BackgroundDark
+    val currentTextColor = if (!actionEnabled) TextMuted else BackgroundDark
 
     Box(
         modifier = modifier
@@ -63,7 +66,7 @@ fun PrimaryButton(
             .clickable(
                 interactionSource = interactionSource,
                 indication = null,
-                enabled = enabled && !isLoading,
+                enabled = actionEnabled && !isLoading,
                 onClick = onClick
             ),
         contentAlignment = Alignment.Center

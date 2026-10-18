@@ -20,14 +20,9 @@ import com.example.novaplustrader.ui.model.TransactionType
 import com.example.novaplustrader.ui.model.TransactionUiModel
 import com.example.novaplustrader.ui.screens.wallet.models.DepositMethod
 import com.example.novaplustrader.ui.screens.wallet.models.WithdrawMethod
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.launch
 import java.util.UUID
 
 class WalletRepositoryImpl(
@@ -35,39 +30,13 @@ class WalletRepositoryImpl(
     private val auth: FirebaseAuth = FirebaseAuth.getInstance()
 ) : WalletRepository {
 
-    private val scope = CoroutineScope(Dispatchers.Default)
-
-    private val _balances = MutableStateFlow(
-        mapOf(
-            Currency.USD to 0.0,
-            Currency.KES to 0.0
-        )
-    )
-
-    private val _uiTransactions = MutableStateFlow<List<TransactionUiModel>>(emptyList())
-
-    init {
-        // Synchronize legacy UI flow streams with backend authoritative state
-        scope.launch {
-            backendService.observeWalletBalance("w_usd").collect { usdModel ->
-                _balances.value = _balances.value + (Currency.USD to usdModel.availableBalance)
-            }
-        }
-        scope.launch {
-            backendService.observeWalletBalance("w_kes").collect { kesModel ->
-                _balances.value = _balances.value + (Currency.KES to kesModel.availableBalance)
-            }
-        }
-        scope.launch {
-            backendService.observeTransactionHistory("").collect { list ->
-                _uiTransactions.value = list.map { mapToUiModel(it) }
-            }
-        }
+    override fun observeBalances(): Flow<Map<Currency, Double>> = flow {
+        throw IllegalStateException("Legacy wallet balances are unavailable until the financial backend is configured")
     }
 
-    override fun observeBalances(): StateFlow<Map<Currency, Double>> = _balances.asStateFlow()
-
-    override fun observeTransactions(): StateFlow<List<TransactionUiModel>> = _uiTransactions.asStateFlow()
+    override fun observeTransactions(): Flow<List<TransactionUiModel>> = flow {
+        throw IllegalStateException("Legacy transaction history is unavailable until the financial backend is configured")
+    }
 
     override fun observeTransactionById(id: String): Flow<TransactionUiModel?> {
         return backendService.observeTransaction(id).map { it?.let { mapToUiModel(it) } }
@@ -120,7 +89,7 @@ class WalletRepositoryImpl(
     ): Result<TransactionUiModel> {
         val userId = auth.currentUser?.uid
             ?: return Result.failure(IllegalStateException("Sign in before requesting a deposit"))
-        val walletId = if (currency == Currency.USD) "w_usd" else "w_kes"
+        val walletId = walletId(userId, currency)
         val req = DepositRequest(
             idempotencyKey = "idemp_dep_${UUID.randomUUID().toString().take(10)}",
             userId = userId,
@@ -143,7 +112,7 @@ class WalletRepositoryImpl(
     ): Result<TransactionUiModel> {
         val userId = auth.currentUser?.uid
             ?: return Result.failure(IllegalStateException("Sign in before requesting a withdrawal"))
-        val walletId = if (currency == Currency.USD) "w_usd" else "w_kes"
+        val walletId = walletId(userId, currency)
         val req = WithdrawalRequest(
             idempotencyKey = "idemp_wd_${UUID.randomUUID().toString().take(10)}",
             userId = userId,
@@ -167,7 +136,7 @@ class WalletRepositoryImpl(
     ): Result<TransactionUiModel> {
         val userId = auth.currentUser?.uid
             ?: return Result.failure(IllegalStateException("Sign in before requesting a transfer"))
-        val walletId = if (currency == Currency.USD) "w_usd" else "w_kes"
+        val walletId = walletId(userId, currency)
         val req = TransferRequest(
             idempotencyKey = "idemp_trf_${UUID.randomUUID().toString().take(10)}",
             senderUserId = userId,
@@ -230,4 +199,7 @@ class WalletRepositoryImpl(
             status = uiStatus
         )
     }
+
+    private fun walletId(userId: String, currency: Currency): String =
+        "wallet-${userId}-${currency.code.lowercase()}"
 }

@@ -18,7 +18,7 @@ class SecureBackendFallbackTest {
     @Test
     fun unconfiguredFinancialBackendHasNoSeededFundsOrCompletedDeposits() = runBlocking {
         val backend = FinancialBackendServiceImpl()
-        assertEquals(0.0, backend.getWalletBalance("w_usd").getOrThrow().availableBalance, 0.0)
+        assertTrue(backend.getWalletBalance("wallet-test-user-usd").isFailure)
 
         val result = backend.createDepositRequest(
             DepositRequest(
@@ -31,7 +31,7 @@ class SecureBackendFallbackTest {
             )
         )
         assertTrue(result.isFailure)
-        assertTrue(backend.getTransactionHistory("w_usd").getOrThrow().isEmpty())
+        assertTrue(backend.getTransactionHistory("wallet-test-user-usd").isFailure)
     }
 
     @Test

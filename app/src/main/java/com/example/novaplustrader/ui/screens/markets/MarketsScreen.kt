@@ -13,8 +13,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -38,9 +39,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.novaplustrader.ui.components.AccessibleDropdownSelector
 import com.example.novaplustrader.domain.model.trading.MarketRanking
 import com.example.novaplustrader.domain.model.trading.MarketRankings
-import com.example.novaplustrader.domain.model.trading.MarketConnectionState
 import com.example.novaplustrader.domain.model.trading.MarketSummary
 import com.example.novaplustrader.ui.screens.trading.TradingViewModel
 import com.example.novaplustrader.ui.screens.trading.models.TradingAsset
@@ -116,32 +117,6 @@ fun MarketsScreen(
             contentPadding = PaddingValues(bottom = 100.dp, start = 16.dp, end = 16.dp)
         ) {
             item {
-                Text(
-                    text = when {
-                        state.marketIsLoading && state.marketSummaries.isEmpty() -> "Loading supported Binance spot pairs…"
-                        state.marketConnectionState == MarketConnectionState.CONNECTED -> "Live feed · ${state.marketConnectionState.label}"
-                        state.marketSummaries.isNotEmpty() -> "Showing last received quotes · ${state.marketConnectionState.label}"
-                        else -> "Market data ${state.marketConnectionState.label.lowercase(Locale.US)} · retrying automatically"
-                    },
-                    color = if (state.marketConnectionState == MarketConnectionState.CONNECTED) ElectricLime else TextMuted,
-                    fontSize = 11.sp,
-                    modifier = Modifier.padding(bottom = 8.dp)
-                )
-                Text(
-                    "Prices and quote volumes are reported in USDT. USDT is not an FX-converted USD price.",
-                    color = TextMuted,
-                    fontSize = 10.sp,
-                    modifier = Modifier.padding(bottom = 8.dp)
-                )
-                Text(
-                    "USD/KES estimates are unavailable: no verified FX provider is configured.",
-                    color = TextMuted,
-                    fontSize = 10.sp,
-                    modifier = Modifier.padding(bottom = 10.dp)
-                )
-                state.marketDataError?.let { error ->
-                    Text(error, color = FinancialRed, fontSize = 11.sp, modifier = Modifier.padding(bottom = 8.dp))
-                }
                 OutlinedTextField(
                     value = searchQuery,
                     onValueChange = { searchQuery = it },
@@ -161,43 +136,30 @@ fun MarketsScreen(
                 )
             }
             item {
-                Spacer(Modifier.height(12.dp))
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(rankings) { ranking ->
-                        val selected = ranking == selectedRanking
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(20.dp))
-                                .background(if (selected) ElectricLimeSurface else SurfaceDarkCard)
-                                .border(1.dp, if (selected) ElectricLime else SurfaceBorder, RoundedCornerShape(20.dp))
-                                .clickable { selectedRanking = ranking }
-                                .padding(horizontal = 14.dp, vertical = 8.dp)
-                        ) {
-                            Text(
-                                ranking.label,
-                                color = if (selected) ElectricLime else TextPrimary,
-                                fontSize = 12.sp,
-                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
-                            )
-                        }
-                    }
+                Spacer(Modifier.height(14.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "MARKET RANKING",
+                        color = TextMuted,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.sp
+                    )
+
+                    AccessibleDropdownSelector(
+                        label = "Market ranking",
+                        options = rankings,
+                        selectedOption = selectedRanking,
+                        optionLabel = { it.label },
+                        onOptionSelected = { selectedRanking = it },
+                        modifier = Modifier.width(160.dp)
+                    )
                 }
                 Spacer(Modifier.height(16.dp))
-                Text(
-                    text = when (selectedRanking) {
-                        MarketRanking.HOT -> "HOT · largest absolute 24h moves in supported pairs"
-                        MarketRanking.GAINERS -> "GAINERS · 24h price change"
-                        MarketRanking.LOSERS -> "LOSERS · 24h price change"
-                        MarketRanking.NEW_LISTINGS -> "NEW LISTINGS · recently added spot assets"
-                        MarketRanking.VOLUME -> "24H QUOTE VOLUME · USDT"
-                        MarketRanking.MARKET_CAP -> "MARKET CAPITALIZATION · global ranking"
-                    },
-                    color = TextMuted,
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 0.5.sp
-                )
-                Spacer(Modifier.height(10.dp))
             }
             if (filteredMarkets.isEmpty()) {
                 item {
@@ -258,7 +220,6 @@ private fun MarketRow(market: MarketSummary, onClick: () -> Unit) {
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(top = 4.dp)
             )
-            Text(if (market.isStale) "STALE" else market.source, color = if (market.isStale) FinancialRed else TextMuted, fontSize = 9.sp)
         }
     }
 }

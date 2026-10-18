@@ -12,7 +12,8 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 class ProfileViewModel(
-    private val repository: ProfileRepository = ProfileRepositoryImpl()
+    private val repository: ProfileRepository = ProfileRepositoryImpl(),
+    private val auth: com.google.firebase.auth.FirebaseAuth = com.google.firebase.auth.FirebaseAuth.getInstance()
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ProfileUiState())
@@ -20,6 +21,32 @@ class ProfileViewModel(
 
     init {
         observeProfileData()
+        loadRealUser()
+    }
+
+    private fun loadRealUser() {
+        val user = auth.currentUser
+        if (user != null) {
+            val name = user.displayName.orEmpty()
+            val email = user.email.orEmpty()
+            val p = ProfileModel(
+                uid = user.uid,
+                fullName = name,
+                displayName = name.substringBefore(" "),
+                email = email,
+                phoneNumber = user.phoneNumber.orEmpty(),
+                accountId = "NV-${user.uid}",
+                verificationStatus = if (user.isEmailVerified) "VERIFIED" else "PENDING"
+            )
+            _uiState.update {
+                it.copy(
+                    profile = p,
+                    fullNameInput = p.fullName,
+                    displayNameInput = p.displayName,
+                    phoneNumberInput = p.phoneNumber
+                )
+            }
+        }
     }
 
     private fun observeProfileData() {
@@ -92,9 +119,14 @@ class ProfileViewModel(
     fun confirmLogout(onLoggedOut: () -> Unit) {
         _uiState.update { it.copy(isLogoutConfirmOpen = false, isLoading = true) }
         viewModelScope.launch {
-            repository.logout()
-            _uiState.update { it.copy(isLoading = false) }
-            onLoggedOut()
+            repository.logout().onSuccess {
+                _uiState.update { it.copy(isLoading = false) }
+                onLoggedOut()
+            }.onFailure { error ->
+                _uiState.update {
+                    it.copy(isLoading = false, errorMessage = error.localizedMessage ?: "Unable to sign out")
+                }
+            }
         }
     }
 

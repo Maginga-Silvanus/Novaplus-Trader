@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -41,12 +40,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.novaplustrader.domain.model.compliance.DocumentType
+import com.example.novaplustrader.ui.components.AccessibleDropdownSelector
 import com.example.novaplustrader.ui.components.IconActionButton
 import com.example.novaplustrader.ui.components.PrimaryButton
 import com.example.novaplustrader.ui.components.SuccessAnimation
 import com.example.novaplustrader.ui.theme.BackgroundDark
 import com.example.novaplustrader.ui.theme.ElectricLime
-import com.example.novaplustrader.ui.theme.ElectricLimeSurface
 import com.example.novaplustrader.ui.theme.FinancialGreen
 import com.example.novaplustrader.ui.theme.FinancialRed
 import com.example.novaplustrader.ui.theme.OverlayDark
@@ -110,31 +109,14 @@ fun KycDocumentUploadScreen(
 
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        items(DocumentType.entries) { type ->
-                            val isSelected = type == uiState.selectedDocumentType
-                            val bg = if (isSelected) ElectricLimeSurface else SurfaceDarkCard
-                            val border = if (isSelected) ElectricLime else SurfaceBorder
-
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(20.dp))
-                                    .background(bg)
-                                    .border(1.dp, border, RoundedCornerShape(20.dp))
-                                    .clickable { viewModel.selectDocumentType(type) }
-                                    .padding(horizontal = 16.dp, vertical = 8.dp)
-                            ) {
-                                Text(
-                                    text = type.displayName,
-                                    color = if (isSelected) ElectricLime else TextPrimary,
-                                    fontSize = 12.sp,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
-                                )
-                            }
-                        }
-                    }
+                    AccessibleDropdownSelector(
+                        label = "Document type",
+                        options = DocumentType.entries,
+                        selectedOption = uiState.selectedDocumentType,
+                        optionLabel = { it.displayName },
+                        onOptionSelected = viewModel::selectDocumentType,
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
 
                 // Full Legal Name Input

@@ -10,17 +10,22 @@ import com.example.novaplustrader.domain.model.compliance.KycVerificationRequest
 import com.example.novaplustrader.domain.model.compliance.RiskStatus
 import com.example.novaplustrader.ui.screens.notifications.models.NotificationCategory
 import com.example.novaplustrader.ui.screens.notifications.models.NotificationModel
+import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 
 class KycRepositoryImpl(
     private val service: KycComplianceService = KycComplianceServiceImpl(),
-    private val notificationRepository: NotificationRepository = NotificationRepositoryImpl()
+    private val notificationRepository: NotificationRepository = NotificationRepositoryImpl(),
+    private val auth: FirebaseAuth = FirebaseAuth.getInstance()
 ) : KycRepository {
 
-    override fun observeKycStatus(): StateFlow<KycStatus> = service.observeKycStatus("usr_9901")
-    override fun observeRiskStatus(): StateFlow<RiskStatus> = service.observeRiskStatus("usr_9901")
-    override fun observeRequirements(): Flow<List<KycRequirement>> = service.observeRequirements("usr_9901")
+    private val userId: String
+        get() = auth.currentUser?.uid.orEmpty()
+
+    override fun observeKycStatus(): StateFlow<KycStatus> = service.observeKycStatus(userId)
+    override fun observeRiskStatus(): StateFlow<RiskStatus> = service.observeRiskStatus(userId)
+    override fun observeRequirements(): Flow<List<KycRequirement>> = service.observeRequirements(userId)
 
     override suspend fun submitKycVerification(
         fullName: String,
@@ -31,8 +36,10 @@ class KycRepositoryImpl(
         backImageUri: String?,
         selfieImageUri: String?
     ): Result<KycStatus> {
+        val uid = auth.currentUser?.uid
+            ?: return Result.failure(IllegalStateException("Sign in before submitting KYC documents."))
         val request = KycVerificationRequest(
-            userId = "usr_9901",
+            userId = uid,
             fullName = fullName,
             dateOfBirth = dateOfBirth,
             documentType = documentType,

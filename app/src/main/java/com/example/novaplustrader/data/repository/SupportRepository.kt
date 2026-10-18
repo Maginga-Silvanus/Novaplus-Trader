@@ -5,11 +5,10 @@ import com.example.novaplustrader.ui.screens.support.models.SupportTicketModel
 import com.example.novaplustrader.ui.screens.support.models.TicketCategory
 import com.example.novaplustrader.ui.screens.support.models.TicketMessageModel
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.StateFlow
 
 interface SupportRepository {
-    fun observeFaqs(): StateFlow<List<FaqModel>>
-    fun observeTickets(): StateFlow<List<SupportTicketModel>>
+    fun observeFaqs(): Flow<List<FaqModel>>
+    fun observeTickets(): Flow<List<SupportTicketModel>>
     fun observeTicketById(ticketId: String): Flow<SupportTicketModel?>
     fun observeTicketMessages(ticketId: String): Flow<List<TicketMessageModel>>
 

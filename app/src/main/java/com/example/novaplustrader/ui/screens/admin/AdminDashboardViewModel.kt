@@ -16,7 +16,7 @@ data class AdminDashboardUiState(
     val metrics: AdminMetricsModel? = null,
     val isLoading: Boolean = false,
     val isUnavailable: Boolean = false,
-    val currentRole: AdminRole = AdminRole.SUPER_ADMIN,
+    val currentRole: AdminRole = AdminRole.READ_ONLY,
     val errorMessage: String? = null
 )
 

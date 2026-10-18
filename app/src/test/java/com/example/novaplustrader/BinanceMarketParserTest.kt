@@ -33,6 +33,25 @@ class BinanceMarketParserTest {
     }
 
     @Test
+    fun exposesEightSupportedSpotPairsAndFiltersExchangeMetadataAgainstThatSet() {
+        val expected = setOf(
+            "BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT",
+            "XRPUSDT", "ADAUSDT", "DOGEUSDT", "LTCUSDT"
+        )
+        val response = JSONObject().put(
+            "symbols",
+            JSONArray().apply {
+                expected.forEach { put(symbolInfo(it, true)) }
+                put(symbolInfo("SHIBUSDT", true))
+            }
+        )
+
+        assertEquals(expected, BinanceMarketParser.supportedSymbols)
+        assertEquals(expected, BinanceMarketParser.parseExchangeInfo(response.toString()))
+        assertEquals(expected.size, BinanceMarketParser.supportedAssets.size)
+    }
+
+    @Test
     fun parsesRestTickerAndWebSocketTickerIntoProviderValues() {
         val restTicker = JSONObject()
             .put("symbol", "BTCUSDT")
