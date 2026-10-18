@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -42,6 +43,7 @@ import com.example.novaplustrader.ui.components.BalanceCard
 import com.example.novaplustrader.ui.components.ErrorState
 import com.example.novaplustrader.ui.components.LoadingState
 import com.example.novaplustrader.ui.components.PremiumTopBar
+import com.example.novaplustrader.ui.components.PrimaryButton
 import com.example.novaplustrader.ui.components.QRActionCard
 import com.example.novaplustrader.ui.components.QuickActionButton
 import com.example.novaplustrader.ui.components.TransactionList
@@ -153,6 +155,47 @@ fun HomeScreen(
                             todayChangePercentage = uiState.todayChangePercentage,
                             onCurrencySelected = viewModel::selectCurrency
                         )
+                    }
+                }
+
+                if (!uiState.rewardClaimed) {
+                    item {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 20.dp, vertical = 6.dp)
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(ElectricLimeSurface)
+                                .border(1.dp, ElectricLime, RoundedCornerShape(16.dp))
+                                .clickable { viewModel.claimFirstTimeReward() }
+                                .padding(16.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "CLAIM $5.00 WELCOME REWARD",
+                                        color = ElectricLime,
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = "Tap to claim your first-time login reward instantly.",
+                                        color = TextPrimary,
+                                        fontSize = 12.sp
+                                    )
+                                }
+                                PrimaryButton(
+                                    text = "CLAIM",
+                                    onClick = { viewModel.claimFirstTimeReward() },
+                                    modifier = Modifier.width(100.dp)
+                                )
+                            }
+                        }
                     }
                 }
 

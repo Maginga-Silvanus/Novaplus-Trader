@@ -22,6 +22,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CurrencyBitcoin
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
@@ -95,7 +96,11 @@ fun CryptoWalletScreen(
                     fontWeight = FontWeight.Bold
                 )
 
-                Spacer(modifier = Modifier.size(40.dp))
+                IconActionButton(
+                    icon = androidx.compose.material.icons.Icons.Default.Refresh,
+                    contentDescription = "Refresh",
+                    onClick = { viewModel.refresh() }
+                )
             }
 
             LazyColumn(
@@ -142,12 +147,6 @@ fun CryptoWalletScreen(
                             fontSize = 13.sp,
                             fontWeight = FontWeight.SemiBold
                         )
-                        Text(
-                            text = "This is a NovaPlus identifier, not an on-chain deposit address.",
-                            color = TextMuted,
-                            fontSize = 11.sp
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             text = "Mode: ${snapshot?.mode?.uppercase(Locale.US) ?: "PAPER"} · Fee: ${snapshot?.paperTradeFeeBps ?: 10} bps",
                             color = TextMuted,

@@ -7,7 +7,8 @@ data class MainUserWalletSnapshot(
     val usdBalanceMinorUnits: Long = 0L,
     val kesBalanceMinorUnits: Long = 0L,
     val mode: String = "testing",
-    val initialized: Boolean = false
+    val initialized: Boolean = false,
+    val rewardClaimed: Boolean = false
 ) {
     val usdBalance: Double get() = usdBalanceMinorUnits / 100.0
     val kesBalance: Double get() = kesBalanceMinorUnits / 100.0
@@ -22,6 +23,7 @@ interface MainUserWalletRepository {
         amountMinorUnits: Long,
         idempotencyKey: String
     ): Result<TestWalletOperationResponse>
+    suspend fun claimFirstTimeReward(userId: String): Result<Unit>
 }
 
 data class TestWalletTransaction(

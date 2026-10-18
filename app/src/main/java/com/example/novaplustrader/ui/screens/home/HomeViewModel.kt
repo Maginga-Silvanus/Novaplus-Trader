@@ -12,6 +12,8 @@ import com.example.novaplustrader.data.repository.MainUserWalletRepository
 import com.example.novaplustrader.data.repository.MainUserWalletRepositoryImpl
 import com.example.novaplustrader.ui.model.Currency
 import com.example.novaplustrader.ui.model.WalletUiModel
+import com.example.novaplustrader.ui.screens.notifications.models.NotificationModel
+import com.example.novaplustrader.ui.screens.notifications.models.NotificationCategory
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
@@ -20,6 +22,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.util.UUID
 
 class HomeViewModel(
     private val notificationRepository: NotificationRepository = NotificationRepositoryImpl(),
@@ -35,6 +38,28 @@ class HomeViewModel(
         loadHomeData()
         observeUnreadNotifications()
         observeAuthState()
+    }
+
+    fun claimFirstTimeReward() {
+        viewModelScope.launch {
+            val user = authRepository.getCurrentUser() ?: return@launch
+            mainWalletRepository.claimFirstTimeReward(user.uid)
+                .onSuccess {
+                    notificationRepository.saveNotification(
+                        NotificationModel(
+                            id = UUID.randomUUID().toString(),
+                            userId = user.uid,
+                            title = "First-Time Reward Claimed!",
+                            body = "You have successfully claimed your $5.00 USD welcome reward.",
+                            category = NotificationCategory.WALLET,
+                            timestamp = "Just now"
+                        )
+                    )
+                }
+                .onFailure { error ->
+                    _uiState.update { it.copy(errorMessage = error.localizedMessage ?: "Unable to claim reward") }
+                }
+        }
     }
 
     private fun observeAuthState() {
@@ -76,6 +101,7 @@ class HomeViewModel(
                                 current.copy(
                                     totalBalanceUsd = wallet.usdBalance,
                                     totalBalanceKes = wallet.kesBalance,
+                                    rewardClaimed = wallet.rewardClaimed,
                                     wallets = current.wallets.map { item ->
                                         when (item.currency) {
                                             Currency.USD -> item.copy(balanceAmount = wallet.usdBalance)
@@ -93,6 +119,7 @@ class HomeViewModel(
                             cryptoPortfolioError = null,
                             totalBalanceUsd = 0.0,
                             totalBalanceKes = 0.0,
+                            rewardClaimed = false,
                             wallets = emptyList()
                         )
                     }
@@ -133,6 +160,7 @@ class HomeViewModel(
             }
             val usdBalance = mainWallet?.usdBalance ?: 0.0
             val kesBalance = mainWallet?.kesBalance ?: 0.0
+            val rewardClaimed = mainWallet?.rewardClaimed ?: false
 
             val userWallets = listOf(
                 WalletUiModel(
@@ -162,6 +190,7 @@ class HomeViewModel(
                     userInitials = initials.ifEmpty { "NT" },
                     totalBalanceUsd = usdBalance,
                     totalBalanceKes = kesBalance,
+                    rewardClaimed = rewardClaimed,
                     wallets = userWallets,
                     recentTransactions = emptyList()
                 )

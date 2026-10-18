@@ -175,25 +175,55 @@ class FinancialBackendServiceImpl(
             close(IllegalStateException("Sign in to view transaction history."))
             return@callbackFlow
         }
-        val registration = mainTransactions(uid)
+
+        var mainTxs = emptyList<FinancialTransaction>()
+        var userTxs = emptyList<FinancialTransaction>()
+        var finReqs = emptyList<FinancialTransaction>()
+
+        fun emitCombined() {
+            val combined = (mainTxs + userTxs + finReqs)
+                .distinctBy { it.transactionId.ifBlank { it.idempotencyKey } }
+                .sortedByDescending { it.createdAt }
+            val filtered = if (walletId.isBlank()) combined
+            else combined.filter { it.currency == currencyFromWalletId(walletId) }
+            trySend(filtered)
+        }
+
+        val ref1 = mainTransactions(uid)
             .orderBy("createdAt", Query.Direction.DESCENDING)
             .limit(100)
             .addSnapshotListener { snapshot, error ->
-                when {
-                    error != null -> close(error)
-                    snapshot == null -> close(IllegalStateException("Unable to load transaction history."))
-                    else -> try {
-                        val transactions = snapshot.documents.map { it.toFinancialTransaction() }
-                        trySend(
-                            if (walletId.isBlank()) transactions
-                            else transactions.filter { it.currency == currencyFromWalletId(walletId) }
-                        )
-                    } catch (parseError: Exception) {
-                        close(parseError)
-                    }
+                if (error == null && snapshot != null) {
+                    mainTxs = snapshot.documents.map { it.toFinancialTransaction() }
+                    emitCombined()
                 }
             }
-        awaitClose { registration.remove() }
+
+        val ref2 = firestore.collection("users").document(uid).collection("transactions")
+            .orderBy("createdAt", Query.Direction.DESCENDING)
+            .limit(100)
+            .addSnapshotListener { snapshot, error ->
+                if (error == null && snapshot != null) {
+                    userTxs = snapshot.documents.map { it.toFinancialTransaction() }
+                    emitCombined()
+                }
+            }
+
+        val ref3 = firestore.collection("users").document(uid).collection("financialRequests")
+            .orderBy("createdAt", Query.Direction.DESCENDING)
+            .limit(100)
+            .addSnapshotListener { snapshot, error ->
+                if (error == null && snapshot != null) {
+                    finReqs = snapshot.documents.map { it.toFinancialTransaction() }
+                    emitCombined()
+                }
+            }
+
+        awaitClose {
+            ref1.remove()
+            ref2.remove()
+            ref3.remove()
+        }
     }
 
     override suspend fun requestRefund(request: RefundRequest): Result<FinancialTransaction> = unavailable()

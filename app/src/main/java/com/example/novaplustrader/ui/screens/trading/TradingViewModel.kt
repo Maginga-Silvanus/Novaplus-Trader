@@ -402,6 +402,22 @@ class TradingViewModel(
         }
     }
 
+    fun selectChartType(chartType: String) {
+        _uiState.update { it.copy(selectedChartType = chartType) }
+    }
+
+    fun selectPercentage(percentage: Int) {
+        val total = availableOrderBalance(_uiState.value)
+        val target = total * (percentage / 100.0)
+        _uiState.update {
+            it.copy(
+                selectedPercentage = percentage,
+                tradeAmountString = String.format(Locale.US, "%.2f", target),
+                validationError = null
+            )
+        }
+    }
+
     fun dismissSuccessDialog() {
         _uiState.update { it.copy(isSuccessDialogOpen = false) }
     }

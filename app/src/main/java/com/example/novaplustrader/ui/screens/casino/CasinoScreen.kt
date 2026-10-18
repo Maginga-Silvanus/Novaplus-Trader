@@ -23,6 +23,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -143,6 +145,29 @@ fun CasinoScreen(
                 contentPadding = PaddingValues(bottom = 100.dp, start = 16.dp, end = 16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
+                item {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        SecondaryButton(
+                            text = "Game Mode: ${uiState.gameMode}",
+                            onClick = { viewModel.setGameModeMenuExpanded(true) },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        DropdownMenu(
+                            expanded = uiState.isGameModeMenuExpanded,
+                            onDismissRequest = { viewModel.setGameModeMenuExpanded(false) }
+                        ) {
+                            listOf("Classic Spin", "Multiplier Rush", "Turbo Wheel", "High Stakes Wheel").forEach { mode ->
+                                DropdownMenuItem(
+                                    text = { Text(mode) },
+                                    onClick = { viewModel.selectGameMode(mode) }
+                                )
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
+                }
+
                 // Hero Section & Spin Wheel
                 item {
                     Column(
@@ -155,14 +180,14 @@ fun CasinoScreen(
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Text(
-                            text = "NOVA SPIN DEMO",
+                            text = "NOVA SPIN",
                             color = ElectricLime,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
                             letterSpacing = 1.sp
                         )
                         Text(
-                            text = "Spin to test probability multipliers",
+                            text = "Spin to win real wallet multipliers",
                             color = TextMuted,
                             fontSize = 12.sp
                         )
@@ -177,7 +202,7 @@ fun CasinoScreen(
                     }
                 }
 
-                // Demo Balance & Stake Selection
+                // Wallet Balance & Stake Selection
                 item {
                     Spacer(modifier = Modifier.height(18.dp))
 
@@ -187,20 +212,12 @@ fun CasinoScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column {
-                            Text(text = "DEMO CREDITS BALANCE", color = TextMuted, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            Text(text = "WALLET BALANCE", color = TextMuted, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                             Text(
-                                text = "${uiState.demoBalance.toInt()} Demo Credits",
+                                text = Formatters.formatCurrency(uiState.walletBalanceUsd, Currency.USD),
                                 color = ElectricLime,
                                 fontSize = 20.sp,
                                 fontWeight = FontWeight.Bold
-                            )
-                        }
-
-                        if (uiState.demoBalance < 10) {
-                            IconActionButton(
-                                icon = Icons.Default.Refresh,
-                                contentDescription = "Reset Credits",
-                                onClick = { viewModel.resetDemoCredits() }
                             )
                         }
                     }
@@ -208,7 +225,7 @@ fun CasinoScreen(
                     Spacer(modifier = Modifier.height(12.dp))
 
                     Text(
-                        text = "DEMO STAKE (CREDITS)",
+                        text = "STAKE (USD)",
                         color = TextMuted,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
@@ -254,7 +271,7 @@ fun CasinoScreen(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        listOf(10, 25, 50, 100).forEach { preset ->
+                        listOf(5, 10, 25, 50).forEach { preset ->
                             val isSelected = uiState.selectedStakePreset == preset
                             val bg = if (isSelected) ElectricLimeSurface else SurfaceDarkCard
                             val border = if (isSelected) ElectricLime else SurfaceBorder
@@ -273,7 +290,7 @@ fun CasinoScreen(
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
-                                    text = preset.toString(),
+                                    text = "$$preset",
                                     color = if (isSelected) ElectricLime else TextPrimary,
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.Bold
@@ -297,7 +314,7 @@ fun CasinoScreen(
                     )
                 }
 
-                // Demo Round Result Display
+                // Round Result Display
                 if ((uiState.status == CasinoGameStatus.RESULT) && (uiState.lastRoundResult != null)) {
                     val result = uiState.lastRoundResult!!
                     val isWin = result.resultCredits > 0
@@ -315,7 +332,7 @@ fun CasinoScreen(
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             Text(
-                                text = "DEMO RESULT",
+                                text = "ROUND RESULT",
                                 color = TextMuted,
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
@@ -332,7 +349,7 @@ fun CasinoScreen(
                             )
 
                             Text(
-                                text = "+${result.resultCredits.toInt()} Demo Credits",
+                                text = "Payout: ${Formatters.formatCurrency(result.resultCredits, Currency.USD)}",
                                 color = TextPrimary,
                                 fontSize = 15.sp,
                                 fontWeight = FontWeight.SemiBold
@@ -346,7 +363,7 @@ fun CasinoScreen(
                     Spacer(modifier = Modifier.height(20.dp))
 
                     SecondaryButton(
-                        text = "View Demo Game History",
+                        text = "View Game History",
                         onClick = onNavigateToHistory
                     )
                 }
@@ -364,7 +381,7 @@ fun CasinoScreen(
                             .padding(14.dp)
                     ) {
                         Text(
-                            text = "DEMO MODE NOTICE",
+                            text = "RESPONSIBLE GAMING NOTICE",
                             color = ElectricLime,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
@@ -372,7 +389,7 @@ fun CasinoScreen(
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "This feature is operating in Demo Mode using simulated credits. Demo results do not represent or guarantee real-money outcomes, nor do they modify your real wallet balance.",
+                            text = "This feature operates with real wallet balance. Please gamble responsibly and set limits according to your financial plan.",
                             color = TextMuted,
                             fontSize = 11.sp,
                             lineHeight = 16.sp
@@ -385,12 +402,12 @@ fun CasinoScreen(
         // Responsible Gaming Information Modal Sheet
         if (uiState.isResponsibleGamingDialogOpen) {
             ConfirmationSheet(
-                title = "About Demo Mode & Gaming Policy",
+                title = "About Responsible Gaming & Policy",
                 details = listOf(
-                    "Feature Type" to "Demonstration Only",
-                    "Currency" to "Demo Credits (Non-Monetary)",
-                    "Real Balance Impact" to "None (0.00 USD)",
-                    "Payouts" to "No real cash payouts"
+                    "Feature Type" to "Real Wallet Gaming",
+                    "Currency" to "USD (Fiat)",
+                    "Real Balance Impact" to "Active",
+                    "Payouts" to "Directly to Wallet Balance"
                 ),
                 confirmButtonText = "I Understand",
                 onConfirm = { viewModel.closeResponsibleGamingDialog() },

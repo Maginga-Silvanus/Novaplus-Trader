@@ -32,7 +32,6 @@ class CryptoWalletViewModel(
 
     fun loadCryptoWallet() {
         viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true, errorMessage = null) }
             val userId = auth.currentUser?.uid
             if (userId == null) {
                 _uiState.update {
@@ -48,11 +47,16 @@ class CryptoWalletViewModel(
 
             try {
                 cryptoRepository.observeWallet(userId).collect { snapshot ->
+                    // Silent background update without setting isLoading = true
                     _uiState.update { it.copy(snapshot = snapshot, isLoading = false) }
                 }
             } catch (e: Exception) {
                 _uiState.update { it.copy(errorMessage = e.message) }
             }
         }
+    }
+
+    fun refresh() {
+        loadCryptoWallet()
     }
 }

@@ -16,6 +16,7 @@ data class WalletUiState(
     val userName: String = "Nova Trader",
     val walletId: String = "",
     val selectedCurrency: Currency = Currency.USD,
+    val rewardClaimed: Boolean = false,
 
     // Granular Ledger Balances
     val usdBalance: Double = 5.00,

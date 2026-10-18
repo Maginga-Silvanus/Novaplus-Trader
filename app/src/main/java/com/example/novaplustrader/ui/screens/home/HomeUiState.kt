@@ -19,6 +19,7 @@ data class HomeUiState(
     val todayChangeAmountUsd: Double = 0.0,
     val todayChangeAmountKes: Double = 0.0,
     val todayChangePercentage: Double = 0.0,
+    val rewardClaimed: Boolean = false,
     val wallets: List<WalletUiModel> = emptyList(),
     val recentTransactions: List<TransactionUiModel> = emptyList()
 )

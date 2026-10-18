@@ -4,20 +4,24 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.novaplustrader.data.repository.BettingRepository
 import com.example.novaplustrader.data.repository.DemoBettingRepositoryImpl
+import com.example.novaplustrader.data.repository.MainUserWalletRepository
+import com.example.novaplustrader.data.repository.MainUserWalletRepositoryImpl
 import com.example.novaplustrader.ui.screens.betting.models.BetSlipItem
 import com.example.novaplustrader.ui.screens.betting.models.BettingSelection
 import com.example.novaplustrader.ui.screens.betting.models.DemoBet
 import com.example.novaplustrader.ui.screens.betting.models.Sport
 import com.example.novaplustrader.ui.screens.betting.models.SportEvent
+import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import java.util.Locale
 
 class BettingViewModel(
-    private val repository: BettingRepository = DemoBettingRepositoryImpl()
+    private val repository: BettingRepository = DemoBettingRepositoryImpl(),
+    private val walletRepository: MainUserWalletRepository = MainUserWalletRepositoryImpl(),
+    private val auth: FirebaseAuth = FirebaseAuth.getInstance()
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(BettingUiState())
@@ -25,15 +29,20 @@ class BettingViewModel(
 
     init {
         observeRepositoryData()
+        observeWallet()
+    }
+
+    private fun observeWallet() {
+        val uid = auth.currentUser?.uid ?: return
+        viewModelScope.launch {
+            walletRepository.observeWallet(uid).collect { snapshot ->
+                _uiState.update { it.copy(demoBettingBalance = snapshot.usdBalance, walletBalanceUsd = snapshot.usdBalance) }
+            }
+        }
     }
 
     private fun observeRepositoryData() {
         viewModelScope.launch {
-            launch {
-                repository.observeDemoBettingBalance().collect { bal ->
-                    _uiState.update { it.copy(demoBettingBalance = bal) }
-                }
-            }
             launch {
                 repository.observeSports().collect { sports ->
                     _uiState.update { it.copy(sports = sports) }
@@ -67,7 +76,6 @@ class BettingViewModel(
         if (existingIndex >= 0) {
             currentItems.removeAt(existingIndex)
         } else {
-            // Remove any other selection from the same event to avoid incompatible same-event bets
             currentItems.removeAll { it.selection.eventId == selection.eventId }
             currentItems.add(
                 BetSlipItem(
@@ -96,7 +104,7 @@ class BettingViewModel(
         val bal = _uiState.value.demoBettingBalance
 
         val error = when {
-            stake > bal -> "Stake exceeds available Demo Credits"
+            stake > bal -> "Stake exceeds available wallet balance"
             else -> null
         }
 
@@ -111,7 +119,7 @@ class BettingViewModel(
 
     fun applyStakePreset(presetAmount: Int) {
         val bal = _uiState.value.demoBettingBalance
-        val error = if (presetAmount > bal) "Stake exceeds available Demo Credits" else null
+        val error = if (presetAmount > bal) "Stake exceeds available wallet balance" else null
 
         _uiState.update {
             it.copy(
@@ -132,11 +140,11 @@ class BettingViewModel(
             return
         }
         if (stake <= 0) {
-            _uiState.update { it.copy(validationError = "Please enter a valid demo stake") }
+            _uiState.update { it.copy(validationError = "Please enter a valid stake") }
             return
         }
         if (stake > bal) {
-            _uiState.update { it.copy(validationError = "Stake exceeds available Demo Credits") }
+            _uiState.update { it.copy(validationError = "Stake exceeds available wallet balance") }
             return
         }
 
@@ -165,7 +173,7 @@ class BettingViewModel(
                     )
                 }
             }.onFailure { err ->
-                _uiState.update { it.copy(errorMessage = err.message ?: "Failed to place demo bet") }
+                _uiState.update { it.copy(errorMessage = err.message ?: "Failed to place bet") }
             }
         }
     }

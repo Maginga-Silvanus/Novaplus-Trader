@@ -161,12 +161,7 @@ fun WithdrawScreen(
                 item {
                     when (uiState.selectedWithdrawMethod) {
                         WithdrawMethod.MPESA -> {
-                            Text(
-                                text = "Requests stay pending until a payout provider confirms them. No balance is changed here.",
-                                color = ElectricLime,
-                                fontSize = 12.sp,
-                                modifier = Modifier.padding(vertical = 14.dp)
-                            )
+                            // Removed pending info text
                         }
 
                         WithdrawMethod.BANK -> {

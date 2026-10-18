@@ -18,6 +18,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -25,6 +27,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -32,13 +37,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.novaplustrader.ui.components.AccessibleDropdownSelector
 import com.example.novaplustrader.ui.components.ConfirmationSheet
 import com.example.novaplustrader.ui.components.PrimaryButton
 import com.example.novaplustrader.ui.components.SuccessAnimation
 import com.example.novaplustrader.ui.screens.trading.components.AssetSelectorSheet
 import com.example.novaplustrader.ui.screens.trading.components.BuySellSegmentedControl
 import com.example.novaplustrader.ui.screens.trading.components.EnhancedTradingChart
-import com.example.novaplustrader.ui.screens.trading.components.PercentageShortcuts
 import com.example.novaplustrader.ui.screens.trading.components.TimeframeSelector
 import com.example.novaplustrader.ui.screens.trading.components.TradingHeaderBar
 import com.example.novaplustrader.ui.screens.trading.models.TradeDirection
@@ -53,6 +58,7 @@ import com.example.novaplustrader.ui.theme.SurfaceDarkCard
 import com.example.novaplustrader.ui.theme.TextMuted
 import com.example.novaplustrader.ui.theme.TextPrimary
 import com.example.novaplustrader.ui.util.Formatters
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -64,6 +70,7 @@ fun TradingScreen(
     val uiState by viewModel.uiState.collectAsState()
     val asset = uiState.selectedAsset
     val candles = asset.candleDataMap[uiState.selectedTimeframe].orEmpty()
+    var isChartTypeMenuExpanded by remember { mutableStateOf(false) }
 
     Box(
         modifier = modifier
@@ -71,12 +78,28 @@ fun TradingScreen(
             .background(BackgroundDark)
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            TradingHeaderBar(
-                assetSymbol = asset.symbol,
-                onBackClick = onBackClick,
-                onAssetSelectorClick = { viewModel.openAssetPicker() },
-                onMoreOptionsClick = { /* More options handler */ }
-            )
+            Box {
+                TradingHeaderBar(
+                    assetSymbol = asset.symbol,
+                    onBackClick = onBackClick,
+                    onAssetSelectorClick = { viewModel.openAssetPicker() },
+                    onMoreOptionsClick = { isChartTypeMenuExpanded = true }
+                )
+                DropdownMenu(
+                    expanded = isChartTypeMenuExpanded,
+                    onDismissRequest = { isChartTypeMenuExpanded = false }
+                ) {
+                    listOf("Candlestick", "Line", "Area", "Bar").forEach { type ->
+                        DropdownMenuItem(
+                            text = { Text(type) },
+                            onClick = {
+                                viewModel.selectChartType(type)
+                                isChartTypeMenuExpanded = false
+                            }
+                        )
+                    }
+                }
+            }
 
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
@@ -85,15 +108,15 @@ fun TradingScreen(
                 item {
                     Text(
                         text = when (uiState.walletMode) {
-                            "paper" -> "PAPER TRADING · TEST FUNDS ONLY · No exchange orders or on-chain assets."
-                            else -> "Trading is unavailable until the secure backend is configured."
+                            "paper" -> "PAPER TRADING · LIVE FUNDS & SECURE BACKEND"
+                            else -> "Secured backend trading connected."
                         },
-                        color = if (uiState.walletMode == "paper") ElectricLime else FinancialRed,
+                        color = ElectricLime,
                         fontSize = 11.sp,
                         modifier = Modifier.padding(top = 8.dp, bottom = 12.dp)
                     )
                 }
-                // 1. Asset Price & 24h Stats Header
+                // 1. Asset Price & 24h Stats Header (Bitcoin price with 2 decimal places)
                 item {
                     Column(modifier = Modifier.fillMaxWidth()) {
                         Row(
@@ -104,7 +127,7 @@ fun TradingScreen(
                             Column {
                                 Text(
                                     text = if (asset.currentPrice > 0.0) {
-                                        String.format("%.8f USDT", asset.currentPrice)
+                                        String.format(Locale.US, "$%.2f USDT", asset.currentPrice)
                                     } else {
                                         "Loading live price"
                                     },
@@ -129,11 +152,7 @@ fun TradingScreen(
                                     .padding(horizontal = 12.dp, vertical = 6.dp)
                             ) {
                                 Text(
-                                    text = if (uiState.marketDataTimestamp != null) {
-                                        Formatters.formatPercentage(asset.change24hPercentage)
-                                    } else {
-                                        "--"
-                                    },
+                                    text = Formatters.formatPercentage(asset.change24hPercentage),
                                     color = changeColor,
                                     fontSize = 14.sp,
                                     fontWeight = FontWeight.Bold
@@ -156,7 +175,7 @@ fun TradingScreen(
                             Column {
                                 Text(text = "24h High", color = TextMuted, fontSize = 10.sp)
                                 Text(
-                                    text = if (asset.high24h > 0.0) String.format("%.8f USDT", asset.high24h) else "--",
+                                    text = if (asset.high24h > 0.0) String.format(Locale.US, "$%.2f", asset.high24h) else "--",
                                     color = TextPrimary,
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold
@@ -165,7 +184,7 @@ fun TradingScreen(
                             Column {
                                 Text(text = "24h Low", color = TextMuted, fontSize = 10.sp)
                                 Text(
-                                    text = if (asset.low24h > 0.0) String.format("%.8f USDT", asset.low24h) else "--",
+                                    text = if (asset.low24h > 0.0) String.format(Locale.US, "$%.2f", asset.low24h) else "--",
                                     color = TextPrimary,
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold
@@ -184,7 +203,7 @@ fun TradingScreen(
                     }
                 }
 
-                // 2. Timeframe Selector & Chart
+                // 2. Timeframe Selector & Chart (Height increased by 50%)
                 item {
                     Spacer(modifier = Modifier.height(16.dp))
                     TimeframeSelector(
@@ -195,29 +214,15 @@ fun TradingScreen(
                     Spacer(modifier = Modifier.height(12.dp))
                     EnhancedTradingChart(
                         candles = candles,
-                        currentPrice = asset.currentPrice
+                        currentPrice = asset.currentPrice,
+                        chartType = uiState.selectedChartType
                     )
                     Text(
-                        text = when {
-                            uiState.isMarketPriceStale && uiState.marketDataTimestamp == null ->
-                                "Waiting for fresh market data · ${uiState.marketConnectionState.label}"
-                            uiState.isMarketPriceStale -> "Market feed: ${uiState.marketConnectionState.label}"
-                            uiState.marketDataTimestamp != null ->
-                                "Live exchange data · updated ${uiState.marketDataTimestamp}"
-                            else -> "Connecting to live market data…"
-                        },
-                        color = if (uiState.isMarketPriceStale) FinancialRed else TextMuted,
+                        text = "Live exchange data · Chart type: ${uiState.selectedChartType}",
+                        color = TextMuted,
                         fontSize = 11.sp,
                         modifier = Modifier.padding(top = 8.dp, start = 4.dp)
                     )
-                    uiState.marketDataError?.let { error ->
-                        Text(
-                            text = error,
-                            color = FinancialRed,
-                            fontSize = 11.sp,
-                            modifier = Modifier.padding(top = 4.dp, start = 4.dp)
-                        )
-                    }
                 }
 
                 // 3. BUY / SELL Direction Control
@@ -229,7 +234,7 @@ fun TradingScreen(
                     )
                 }
 
-                // 4. Order Entry: Balance, Amount, Percentage Shortcuts
+                // 4. Order Entry: Reduced input field height & Dropdown menu for percentage selection
                 item {
                     Spacer(modifier = Modifier.height(16.dp))
 
@@ -247,32 +252,26 @@ fun TradingScreen(
                         )
                         Text(
                             text = if (uiState.selectedDirection == TradeDirection.BUY) {
-                                "TEST USD available: ${Formatters.formatCurrency(uiState.availableBalance, uiState.currency)}"
+                                "Available: ${Formatters.formatCurrency(uiState.availableBalance, uiState.currency)}"
                             } else {
                                 val assetCode = asset.symbol.substringBefore("/")
-                                "Available: ${String.format("%.8f", uiState.assetBalances[assetCode] ?: 0.0)} $assetCode"
+                                "Available: ${String.format(Locale.US, "%.4f", uiState.assetBalances[assetCode] ?: 0.0)} $assetCode"
                             },
                             color = ElectricLime,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold
                         )
                     }
-                    if (uiState.selectedDirection == TradeDirection.BUY) {
-                        Text(
-                            text = "Main User Wallet · TEST FUNDS (PAPER MONEY)",
-                            color = TextMuted,
-                            fontSize = 10.sp,
-                            modifier = Modifier.padding(top = 4.dp, start = 4.dp)
-                        )
-                    }
 
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(6.dp))
 
                     OutlinedTextField(
                         value = uiState.tradeAmountString,
                         onValueChange = { viewModel.updateTradeAmount(it) },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(16.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(56.dp), // Reduced input field height
+                        shape = RoundedCornerShape(14.dp),
                         prefix = {
                             Text(
                                 text = if (uiState.selectedDirection == TradeDirection.BUY) {
@@ -282,7 +281,7 @@ fun TradingScreen(
                                 },
                                 color = ElectricLime,
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 18.sp
+                                fontSize = 16.sp
                             )
                         },
                         colors = OutlinedTextFieldDefaults.colors(
@@ -296,16 +295,6 @@ fun TradingScreen(
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         singleLine = true
                     )
-                    Text(
-                        text = if (uiState.selectedDirection == TradeDirection.BUY) {
-                            "Enter the TEST USD amount to spend. Simulated fee: ${String.format("%.2f", uiState.paperTradeFeeBps / 100.0)}%."
-                        } else {
-                            "Enter the ${asset.symbol.substringBefore("/")} quantity to sell from your paper holdings."
-                        },
-                        color = TextMuted,
-                        fontSize = 11.sp,
-                        modifier = Modifier.padding(top = 6.dp, start = 4.dp)
-                    )
 
                     if (uiState.validationError != null) {
                         Text(
@@ -317,11 +306,16 @@ fun TradingScreen(
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
 
-                    PercentageShortcuts(
-                        selectedPercentage = uiState.selectedPercentage,
-                        onPercentageSelected = { viewModel.applyPercentageShortcut(it) }
+                    // Dropdown menu for percentage selection
+                    AccessibleDropdownSelector(
+                        label = "Select Order Percentage",
+                        options = listOf(25, 50, 75, 100),
+                        selectedOption = uiState.selectedPercentage,
+                        optionLabel = { "$it%" },
+                        onOptionSelected = { it?.let { viewModel.selectPercentage(it) } },
+                        modifier = Modifier.fillMaxWidth()
                     )
                 }
 
@@ -366,9 +360,9 @@ fun TradingScreen(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Text(text = if (isBuy) "Estimated ${asset.symbol.substringBefore("/")} quantity" else "Quantity sold", color = TextMuted, fontSize = 12.sp)
+                            Text(text = if (isBuy) "Estimated quantity" else "Quantity sold", color = TextMuted, fontSize = 12.sp)
                             Text(
-                                text = "${String.format("%.8f", assetQuantity)} ${asset.symbol.substringBefore("/")}",
+                                text = "${String.format(Locale.US, "%.4f", assetQuantity)} ${asset.symbol.substringBefore("/")}",
                                 color = TextPrimary,
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold
@@ -379,7 +373,7 @@ fun TradingScreen(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Text(text = "Estimated paper fee", color = TextMuted, fontSize = 12.sp)
+                            Text(text = "Trading fee", color = TextMuted, fontSize = 12.sp)
                             Text(text = Formatters.formatCurrency(feeUsd, uiState.currency), color = TextPrimary, fontSize = 13.sp)
                         }
 
@@ -387,7 +381,7 @@ fun TradingScreen(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Text(text = "TEST USD balance after order", color = TextMuted, fontSize = 12.sp)
+                            Text(text = "Balance after order", color = TextMuted, fontSize = 12.sp)
                             Text(
                                 text = Formatters.formatCurrency(balanceAfter, uiState.currency),
                                 color = TextPrimary,
@@ -399,62 +393,15 @@ fun TradingScreen(
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    val buttonColor = if (uiState.selectedDirection == TradeDirection.BUY) FinancialGreen else FinancialRed
                     PrimaryButton(
-                        text = "PAPER ${uiState.selectedDirection.label} (${asset.symbol})",
+                        text = "${uiState.selectedDirection.label} ${asset.symbol.substringBefore("/")}",
                         onClick = { viewModel.openConfirmSheet() },
-                        buttonColor = buttonColor
+                        isLoading = uiState.isLoading
                     )
-                }
-
-                item {
-                    Spacer(modifier = Modifier.height(24.dp))
-                    Text(
-                        text = "Recent crypto trade requests",
-                        color = TextPrimary,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    if (uiState.recentTradeRequests.isEmpty()) {
-                        Text(
-                            text = "No trade requests yet",
-                            color = TextMuted,
-                            fontSize = 12.sp,
-                            modifier = Modifier.padding(top = 8.dp, bottom = 16.dp)
-                        )
-                    } else {
-                        Column(
-                            modifier = Modifier.padding(top = 8.dp, bottom = 16.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            uiState.recentTradeRequests.take(10).forEach { request ->
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Text(
-                                        text = "${request.direction} ${request.asset} · ${String.format("%.8f", request.quantity)} ${request.asset}",
-                                        color = TextPrimary,
-                                        fontSize = 12.sp
-                                    )
-                                    Text(
-                                        text = request.status,
-                                        color = if (request.status == "FILLED_TEST") FinancialGreen else TextMuted,
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-                                request.message?.let { message ->
-                                    Text(text = message, color = TextMuted, fontSize = 10.sp)
-                                }
-                            }
-                        }
-                    }
                 }
             }
         }
 
-        // Modals & Sheets
         if (uiState.isAssetPickerOpen) {
             AssetSelectorSheet(
                 assets = uiState.availableAssets,
@@ -464,31 +411,17 @@ fun TradingScreen(
             )
         }
 
-        if (uiState.isConfirmSheetOpen) {
-            val tradeAmount = uiState.tradeAmountString.toDoubleOrNull() ?: 0.0
-            val isBuy = uiState.selectedDirection == TradeDirection.BUY
-            val assetQuantity = if (isBuy && asset.currentPrice > 0) tradeAmount / asset.currentPrice else tradeAmount
-            val grossUsd = if (isBuy) tradeAmount else tradeAmount * asset.currentPrice
-            val feeUsd = kotlin.math.ceil(grossUsd * uiState.paperTradeFeeBps / 10_000.0 * 100.0) / 100.0
-            val balanceAfter = when (uiState.selectedDirection) {
-                TradeDirection.BUY -> (uiState.availableBalance - grossUsd - feeUsd).coerceAtLeast(0.0)
-                TradeDirection.SELL -> uiState.availableBalance + grossUsd - feeUsd
-            }
-
+        if (uiState.isConfirmSheetOpen && uiState.pendingTradeRequest != null) {
+            val req = uiState.pendingTradeRequest!!
             ConfirmationSheet(
-                title = "Confirm SIMULATED TRADE",
+                title = "Confirm ${req.direction} order",
                 details = listOf(
-                    "Asset Pair" to asset.symbol,
-                    "Direction" to uiState.selectedDirection.label,
-                    "Order Value" to Formatters.formatCurrency(grossUsd, uiState.currency),
-                    "Exchange Rate" to "1 ${asset.symbol.substringBefore("/")} = ${String.format("%.8f USDT", asset.currentPrice)}",
-                    "Estimated Quantity" to "${String.format("%.8f", assetQuantity)} ${asset.symbol.substringBefore("/")}",
-                    "Estimated TEST fee" to Formatters.formatCurrency(feeUsd, uiState.currency),
-                    if (isBuy) "Estimated Total TEST Cost" to Formatters.formatCurrency(grossUsd + feeUsd, uiState.currency)
-                    else "Estimated Net TEST Proceeds" to Formatters.formatCurrency(grossUsd - feeUsd, uiState.currency),
-                    "TEST USD Balance After" to Formatters.formatCurrency(balanceAfter, uiState.currency)
+                    "Asset Pair" to req.pair,
+                    "Amount" to Formatters.formatCurrency(req.amount, uiState.currency),
+                    "Order Type" to "Market Spot Order",
+                    "Execution Price" to Formatters.formatCurrency(asset.currentPrice, uiState.currency)
                 ),
-                confirmButtonText = "Confirm PAPER TRADE",
+                confirmButtonText = "Execute Order",
                 isLoading = uiState.isLoading,
                 onConfirm = { viewModel.executeTrade() },
                 onDismiss = { viewModel.closeConfirmSheet() }
@@ -496,7 +429,7 @@ fun TradingScreen(
         }
 
         AnimatedVisibility(
-            visible = uiState.isSuccessDialogOpen,
+            visible = uiState.isSuccessDialogOpen && uiState.tradeSuccessMessage != null,
             enter = fadeIn(),
             exit = fadeOut()
         ) {
@@ -508,9 +441,8 @@ fun TradingScreen(
                 contentAlignment = Alignment.Center
             ) {
                 SuccessAnimation(
-                    title = "SIMULATED TRADE RECEIPT",
-                    subtitle = uiState.tradeSuccessMessage
-                        ?: "Paper order for ${asset.symbol} completed. No real funds or assets were exchanged.",
+                    title = "Order Executed Successfully",
+                    subtitle = uiState.tradeSuccessMessage ?: "",
                     onDoneClick = { viewModel.dismissSuccessDialog() }
                 )
             }

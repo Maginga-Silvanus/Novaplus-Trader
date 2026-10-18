@@ -43,7 +43,25 @@ class CryptoWalletRepositoryImpl(
             val portfolio = portfolioSnapshot ?: return
             val holdings = holdingsSnapshot ?: return
             if (!portfolio.exists()) {
-                close(IllegalStateException("The crypto wallet has not been initialized"))
+                val defaultData = mapOf(
+                    "balance" to 0.0,
+                    "marketingBalanceMinorUnits" to 0L,
+                    "tradingBalanceMinorUnits" to 0L,
+                    "mode" to "live",
+                    "createdAt" to com.google.firebase.firestore.FieldValue.serverTimestamp()
+                )
+                walletDocument(userId).set(defaultData, com.google.firebase.firestore.SetOptions.merge())
+                trySend(
+                    CryptoWalletSnapshot(
+                        bitcoinWalletId = "crypto_$userId",
+                        marketingWalletId = "mkt_$userId",
+                        tradingWalletId = "trd_$userId",
+                        assetBalances = emptyMap(),
+                        mode = "live",
+                        paperTradeFeeBps = 10,
+                        minimumTradeUsdMinorUnits = 100L
+                    )
+                )
                 return
             }
             try {

@@ -19,6 +19,8 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -26,6 +28,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -191,9 +196,32 @@ fun TradingBotScreen(
                     }
                 }
 
-                // 5. Strategy Preset Selector
+                // 5. Strategy Preset Selector & Dropdown
                 item {
                     Spacer(modifier = Modifier.height(20.dp))
+                    var isStrategyMenuExpanded by remember { mutableStateOf(false) }
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        SecondaryButton(
+                            text = "Strategy Dropdown: ${config.strategy.title}",
+                            onClick = { isStrategyMenuExpanded = true },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        DropdownMenu(
+                            expanded = isStrategyMenuExpanded,
+                            onDismissRequest = { isStrategyMenuExpanded = false }
+                        ) {
+                            BotStrategy.entries.forEach { strategy ->
+                                DropdownMenuItem(
+                                    text = { Text(strategy.title) },
+                                    onClick = {
+                                        viewModel.selectStrategy(strategy)
+                                        isStrategyMenuExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
                     BotStrategySelector(
                         selectedStrategy = config.strategy,
                         onStrategySelected = { viewModel.selectStrategy(it) }

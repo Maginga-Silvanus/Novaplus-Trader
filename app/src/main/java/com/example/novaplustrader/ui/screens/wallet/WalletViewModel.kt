@@ -57,6 +57,29 @@ class WalletViewModel(
         observeCryptoMarketData()
     }
 
+    fun claimFirstTimeReward() {
+        viewModelScope.launch {
+            val user = authRepository.getCurrentUser() ?: return@launch
+            mainWalletRepository.claimFirstTimeReward(user.uid)
+                .onSuccess {
+                    _uiState.update { it.copy(testWalletNotice = "🎉 $5.00 First-time reward claimed successfully!") }
+                    notificationRepository.saveNotification(
+                        com.example.novaplustrader.ui.screens.notifications.models.NotificationModel(
+                            id = UUID.randomUUID().toString(),
+                            userId = user.uid,
+                            title = "First-Time Reward Claimed!",
+                            body = "You have successfully claimed your $5.00 USD welcome reward.",
+                            category = com.example.novaplustrader.ui.screens.notifications.models.NotificationCategory.WALLET,
+                            timestamp = "Just now"
+                        )
+                    )
+                }
+                .onFailure { error ->
+                    _uiState.update { it.copy(validationError = error.localizedMessage ?: "Unable to claim reward") }
+                }
+        }
+    }
+
     private fun observeCryptoMarketData() {
         viewModelScope.launch {
             marketDataRepository.observeConnectionState().collect { connection ->
@@ -192,6 +215,7 @@ class WalletViewModel(
                                         _uiState.update { current ->
                                             current.copy(
                                                 usdBalance = wallet.usdBalance,
+                                                rewardClaimed = wallet.rewardClaimed,
                                                 usdPendingBalance = current.pendingDepositBalance(Currency.USD),
                                                 usdLockedBalance = 0.0,
                                                 kesBalance = wallet.kesBalance,

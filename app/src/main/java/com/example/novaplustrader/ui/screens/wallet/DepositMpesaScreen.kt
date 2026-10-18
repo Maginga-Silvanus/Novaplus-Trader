@@ -114,19 +114,6 @@ fun DepositMpesaScreen(
                     singleLine = true
                 )
 
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(ElectricLimeSurface)
-                        .padding(12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(imageVector = Icons.Default.Info, contentDescription = "Info", tint = ElectricLime, modifier = Modifier.size(20.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Active STK push prompt will be sent via Safaricom Daraja API.", color = ElectricLime, fontSize = 12.sp, fontWeight = FontWeight.Medium)
-                }
-
                 Spacer(modifier = Modifier.height(20.dp))
                 PrimaryButton(
                     text = "INITIATE STK PUSH",

@@ -1,83 +1,34 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    // =========================================================================
+    // HELPER FUNCTIONS & ACCESS CONTROL
+    // =========================================================================
+
     function signedInAs(userId) {
       return request.auth != null && request.auth.uid == userId;
     }
 
-    function adminRoleIs(roles) {
-      return request.auth != null
-        && request.auth.token.adminRole in roles;
+    function isAdmin() {
+      return request.auth != null && (
+        request.auth.token.admin == true ||
+        (request.auth.token.role in [
+          'SUPER_ADMIN', 'ADMIN', 'OPERATIONS',
+          'COMPLIANCE', 'SUPPORT', 'READ_ONLY'
+        ]) ||
+        exists(/databases/$(database)/documents/adminRoles/$(request.auth.uid))
+      );
     }
 
-    function canReadAllAdminData() {
-      return adminRoleIs(['SUPER_ADMIN', 'ADMIN', 'READ_ONLY']);
-    }
-
-    function canReadOperationsData() {
-      return adminRoleIs(['SUPER_ADMIN', 'ADMIN', 'OPERATIONS', 'READ_ONLY']);
-    }
-
-    function canReadSupportData() {
-      return adminRoleIs(['SUPER_ADMIN', 'ADMIN', 'SUPPORT', 'READ_ONLY']);
-    }
-
-    function canReadComplianceData() {
-      return adminRoleIs(['SUPER_ADMIN', 'ADMIN', 'COMPLIANCE', 'READ_ONLY']);
-    }
-
-    function validUserProfile(userId) {
-      return request.resource.data.keys().hasOnly([
-          'uid',
-          'email',
-          'fullName',
-          'displayName',
-          'phoneNumber',
-          'photoUrl',
-          'createdAt',
-          'updatedAt'
-        ])
-        && request.resource.data.uid == userId;
-    }
-
-    function validNotification(userId) {
-      return request.resource.data.keys().hasOnly([
-          'userId',
-          'title',
-          'body',
-          'category',
-          'timestamp',
-          'isRead',
-          'deepLink',
-          'priority',
-          'metadata',
-          'createdAt'
-        ])
-        && request.resource.data.userId == userId
-        && request.resource.data.title is string
-        && request.resource.data.body is string
-        && request.resource.data.category in [
-          'WALLET', 'TRADING', 'BOT', 'SECURITY', 'SYSTEM', 'BETTING', 'CASINO_DEMO'
-        ]
-        && request.resource.data.isRead is bool
-        && request.resource.data.createdAt == request.time;
-    }
-
-    function validNotificationPreferences() {
-      return request.resource.data.keys().hasOnly([
-          'allowTransactions',
-          'allowTrading',
-          'allowTradingBot',
-          'allowSecurity',
-          'allowSystem',
-          'allowDemoGames'
-        ])
-        && request.resource.data.allowTransactions is bool
-        && request.resource.data.allowTrading is bool
-        && request.resource.data.allowTradingBot is bool
-        && request.resource.data.allowSecurity is bool
-        && request.resource.data.allowSystem is bool
-        && request.resource.data.allowDemoGames is bool;
+    function hasAdminRole(role) {
+      return request.auth != null && (
+        request.auth.token.role == role ||
+        (
+          exists(/databases/$(database)/documents/adminRoles/$(request.auth.uid)) &&
+          get(/databases/$(database)/documents/adminRoles/$(request.auth.uid)).data.role == role
+        )
+      );
     }
 
     function validBotSettings() {
@@ -121,68 +72,172 @@ service cloud.firestore {
         && request.resource.data.updatedAt == request.time;
     }
 
+    function validFinancialRequest() {
+      return request.resource.data.keys().hasAll([
+          'idempotencyKey',
+          'userId',
+          'walletId',
+          'type',
+          'amountMinorUnits',
+          'currency',
+          'createdAt'
+        ])
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.type in ['DEPOSIT', 'WITHDRAWAL', 'TRANSFER']
+        && request.resource.data.amountMinorUnits is int
+        && request.resource.data.amountMinorUnits > 0
+        && request.resource.data.currency in ['USD', 'KES', 'EUR']
+        && request.resource.data.idempotencyKey is string
+        && request.resource.data.idempotencyKey.size() >= 10;
+    }
+
+    function validNotification(userId) {
+      return request.resource.data.keys().hasAll([
+          'userId', 'title', 'body', 'category', 'timestamp', 'isRead', 'createdAt'
+        ])
+        && request.resource.data.keys().hasOnly([
+          'userId', 'title', 'body', 'category', 'timestamp', 'isRead',
+          'deepLink', 'priority', 'metadata', 'createdAt'
+        ])
+        && request.resource.data.userId == userId
+        && request.resource.data.title is string
+        && request.resource.data.body is string
+        && request.resource.data.category in [
+          'WALLET', 'TRADING', 'BOT', 'SECURITY', 'SYSTEM', 'BETTING', 'CASINO_DEMO'
+        ]
+        && request.resource.data.isRead is bool
+        && request.resource.data.createdAt == request.time;
+    }
+
+    function validNotificationPreferences() {
+      return request.resource.data.keys().hasAll([
+          'allowTransactions',
+          'allowTrading',
+          'allowTradingBot',
+          'allowSecurity',
+          'allowSystem',
+          'allowDemoGames'
+        ])
+        && request.resource.data.keys().hasOnly([
+          'allowTransactions',
+          'allowTrading',
+          'allowTradingBot',
+          'allowSecurity',
+          'allowSystem',
+          'allowDemoGames'
+        ])
+        && request.resource.data.allowTransactions is bool
+        && request.resource.data.allowTrading is bool
+        && request.resource.data.allowTradingBot is bool
+        && request.resource.data.allowSecurity is bool
+        && request.resource.data.allowSystem is bool
+        && request.resource.data.allowDemoGames is bool;
+    }
+
+    // =========================================================================
+    // USER PROFILES
+    // =========================================================================
+
     match /users/{userId} {
-      allow get: if signedInAs(userId) || canReadAllAdminData();
-      allow list: if canReadAllAdminData();
-      allow create, update: if signedInAs(userId) && validUserProfile(userId);
+      allow get, list: if signedInAs(userId) || isAdmin();
+      allow create, update: if signedInAs(userId);
       allow delete: if false;
     }
 
-    match /users/{userId}/wallets/main {
-      allow get, list: if signedInAs(userId) || canReadOperationsData();
+    // =========================================================================
+    // AUTHORITATIVE WALLETS, TRANSACTIONS & DOUBLE-ENTRY LEDGER
+    // =========================================================================
+
+    match /wallets/{walletId} {
+      allow get, list: if
+        (request.auth != null && resource.data.userId == request.auth.uid) ||
+        isAdmin();
+
+      // Wallet state can only be changed by trusted backend code.
       allow create, update, delete: if false;
 
       match /transactions/{transactionId} {
-        allow get, list: if signedInAs(userId) || canReadOperationsData();
+        allow get, list: if
+          (request.auth != null &&
+            get(/databases/$(database)/documents/wallets/$(walletId)).data.userId == request.auth.uid) ||
+          isAdmin();
+        allow create, update, delete: if false;
+      }
+
+      match /ledger/{ledgerEntryId} {
+        allow get, list: if
+          (request.auth != null &&
+            get(/databases/$(database)/documents/wallets/$(walletId)).data.userId == request.auth.uid) ||
+          isAdmin();
+        allow create, update, delete: if false;
+      }
+    }
+
+    // Legacy user wallet sub-collections (read-only for users)
+    match /users/{userId}/wallets/{walletId} {
+      allow get, list: if signedInAs(userId) || isAdmin();
+      allow create, update, delete: if false;
+
+      match /transactions/{transactionId} {
+        allow get, list: if signedInAs(userId) || isAdmin();
         allow create, update, delete: if false;
       }
     }
 
     match /users/{userId}/cryptoWallets/spot {
-      allow get, list: if signedInAs(userId) || canReadOperationsData();
+      allow get, list: if signedInAs(userId) || isAdmin();
       allow create, update, delete: if false;
 
       match /holdings/{assetId} {
-        allow get, list: if signedInAs(userId) || canReadOperationsData();
+        allow get, list: if signedInAs(userId) || isAdmin();
         allow create, update, delete: if false;
       }
 
       match /transactions/{transactionId} {
-        allow get, list: if signedInAs(userId) || canReadOperationsData();
+        allow get, list: if signedInAs(userId) || isAdmin();
         allow create, update, delete: if false;
       }
     }
 
-    match /users/{userId}/tradeRequests/{requestId} {
-      allow get, list: if signedInAs(userId) || canReadOperationsData();
-      allow create, update, delete: if false;
-    }
-
-    match /users/{userId}/financialRequests/{requestId} {
-      allow get, list: if signedInAs(userId) || canReadOperationsData();
-      allow create, update, delete: if false;
-    }
-
-    match /users/{userId}/walletOperations/{operationId} {
-      allow get, list: if signedInAs(userId) || canReadOperationsData();
-      allow create, update, delete: if false;
-    }
+    // =========================================================================
+    // USER NOTIFICATIONS & SETTINGS
+    // =========================================================================
 
     match /users/{userId}/notifications/{notificationId} {
-      allow get, list: if signedInAs(userId);
-      allow create, update: if signedInAs(userId) && validNotification(userId);
+      allow get, list: if signedInAs(userId) || isAdmin();
+      allow create: if signedInAs(userId) && validNotification(userId);
+
+      // Allow valid notification saves and read-status changes.
+      allow update: if signedInAs(userId) && (
+        validNotification(userId) ||
+        (
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isRead']) &&
+          request.resource.data.isRead is bool
+        )
+      );
+
       allow delete: if signedInAs(userId);
     }
 
     match /users/{userId}/settings/notifications {
-      allow get: if signedInAs(userId);
-      allow create, update: if signedInAs(userId) && validNotificationPreferences();
+      allow get: if signedInAs(userId) || isAdmin();
+      allow create, update: if
+        signedInAs(userId) && validNotificationPreferences();
       allow delete: if false;
     }
 
+    // =========================================================================
+    // USER SUPPORT TICKETS
+    // =========================================================================
+
     match /users/{userId}/supportTickets/{ticketId} {
-      allow get, list: if signedInAs(userId) || canReadSupportData();
+      allow get, list: if signedInAs(userId) || isAdmin();
+
       allow create: if signedInAs(userId)
+        && request.resource.data.keys().hasAll([
+          'userId', 'subject', 'category', 'status', 'latestResponse',
+          'createdAt', 'updatedAt'
+        ])
         && request.resource.data.keys().hasOnly([
           'userId', 'subject', 'category', 'status', 'latestResponse',
           'transactionId', 'createdAt', 'updatedAt'
@@ -194,73 +249,159 @@ service cloud.firestore {
           'BOT', 'SECURITY', 'TECHNICAL_ISSUE', 'OTHER'
         ]
         && request.resource.data.status == 'OPEN'
+        && request.resource.data.latestResponse is string
         && request.resource.data.createdAt == request.time
         && request.resource.data.updatedAt == request.time;
+
       allow update: if signedInAs(userId)
         && request.resource.data.diff(resource.data).affectedKeys()
           .hasOnly(['latestResponse', 'status', 'updatedAt'])
+        && request.resource.data.latestResponse is string
         && request.resource.data.status == 'OPEN'
         && request.resource.data.updatedAt == request.time;
+
       allow delete: if false;
 
       match /messages/{messageId} {
-        allow get, list: if signedInAs(userId) || canReadSupportData();
+        allow get, list: if signedInAs(userId) || isAdmin();
+
         allow create: if signedInAs(userId)
+          && request.resource.data.keys().hasAll([
+            'senderType', 'senderName', 'messageText', 'createdAt'
+          ])
           && request.resource.data.keys().hasOnly([
             'senderType', 'senderName', 'messageText', 'createdAt'
           ])
           && request.resource.data.senderType == 'USER'
+          && request.resource.data.senderName is string
           && request.resource.data.messageText is string
           && request.resource.data.createdAt == request.time;
+
         allow update, delete: if false;
       }
     }
 
+    // =========================================================================
+    // CLIENT FINANCIAL & TRADE REQUESTS
+    // =========================================================================
+
+    match /users/{userId}/financialRequests/{requestId} {
+      allow get, list: if signedInAs(userId) || isAdmin();
+      allow create: if signedInAs(userId) && validFinancialRequest();
+      allow update, delete: if false;
+    }
+
+    match /users/{userId}/tradeRequests/{requestId} {
+      allow get, list: if signedInAs(userId) || isAdmin();
+      allow create: if signedInAs(userId);
+      allow update, delete: if false;
+    }
+
+    match /users/{userId}/walletOperations/{operationId} {
+      allow get, list: if signedInAs(userId) || isAdmin();
+      allow create: if signedInAs(userId) || isAdmin();
+      allow update, delete: if false;
+    }
+
+    // =========================================================================
+    // TRADING BOTS & COMMANDS
+    // =========================================================================
+
     match /users/{userId}/botSettings/{settingId} {
-      allow get, list: if signedInAs(userId) || canReadOperationsData();
+      allow get, list: if signedInAs(userId) || isAdmin();
       allow create, update: if signedInAs(userId) && validBotSettings();
       allow delete: if signedInAs(userId);
     }
 
-    match /{path=**}/wallets/{walletId} {
-      allow get, list: if canReadOperationsData() && walletId == 'main';
-      allow write: if false;
-    }
-
-    match /{path=**}/transactions/{transactionId} {
-      allow get, list: if canReadOperationsData();
-      allow write: if false;
-    }
-
-    match /{path=**}/tradeRequests/{requestId} {
-      allow get, list: if canReadOperationsData();
-      allow write: if false;
-    }
-
-    match /users/{userId}/kycSubmissions/{submissionId} {
-      allow get, list: if signedInAs(userId) || canReadComplianceData();
-      allow write: if false;
-    }
-
-    match /users/{userId}/kycSubmissions/{submissionId}/{document=**} {
-      allow read: if signedInAs(userId) || canReadComplianceData();
-      allow write: if false;
-    }
-
     match /users/{userId}/botCommands/{commandId} {
-      allow get, list: if signedInAs(userId) || canReadOperationsData();
+      allow get, list: if signedInAs(userId) || isAdmin();
+      allow create: if
+        signedInAs(userId) ||
+        hasAdminRole('OPERATIONS') ||
+        hasAdminRole('SUPER_ADMIN');
+      allow update, delete: if false;
+    }
+
+    // =========================================================================
+    // ADMIN CONTROL CENTER & OPERATIONAL COLLECTIONS
+    // =========================================================================
+
+    match /adminRoles/{userId} {
+      allow get: if signedInAs(userId) || isAdmin();
+      allow list, create, update, delete: if false;
+    }
+
+    match /adminMetrics/{docId} {
+      allow get, list: if isAdmin();
       allow write: if false;
     }
+
+    match /adminAuditLogs/{auditId} {
+      allow get, list: if isAdmin();
+      allow create, update, delete: if false;
+    }
+
+    match /notificationRequests/{requestId} {
+      allow get, list: if isAdmin();
+      allow create: if
+        hasAdminRole('SUPER_ADMIN') ||
+        hasAdminRole('ADMIN') ||
+        hasAdminRole('OPERATIONS');
+      allow update, delete: if false;
+    }
+
+    // Top-level operational support tickets
+    match /supportTickets/{ticketId} {
+      allow get, list: if
+        (request.auth != null && resource.data.userId == request.auth.uid) ||
+        isAdmin();
+
+      allow create: if
+        request.auth != null &&
+        request.resource.data.userId == request.auth.uid;
+
+      allow update: if
+        (request.auth != null && resource.data.userId == request.auth.uid) ||
+        isAdmin();
+
+      allow delete: if false;
+
+      match /messages/{messageId} {
+        allow get, list: if (
+          request.auth != null &&
+          get(/databases/$(database)/documents/supportTickets/$(ticketId))
+            .data.userId == request.auth.uid &&
+          resource.data.isInternalNote == false
+        ) || isAdmin();
+
+        allow create: if (
+          request.auth != null &&
+          get(/databases/$(database)/documents/supportTickets/$(ticketId))
+            .data.userId == request.auth.uid &&
+          request.resource.data.requestDataIsInternalNote == false // or keep as is
+        ) || isAdmin();
+
+        allow update, delete: if false;
+      }
+    }
+
+    // =========================================================================
+    // SYSTEM MONITORING & HEALTH
+    // =========================================================================
 
     match /systemHealth/{docId} {
-      allow get, list: if canReadAllAdminData();
+      allow get, list: if request.auth != null;
       allow write: if false;
     }
 
     match /systemIncidents/{docId} {
-      allow get, list: if canReadAllAdminData();
+      allow get, list: if request.auth != null;
       allow write: if false;
     }
+
+    // =========================================================================
+    // FALLBACK: DENY UNMATCHED PATHS
+    // =========================================================================
 
     match /{document=**} {
       allow read, write: if false;

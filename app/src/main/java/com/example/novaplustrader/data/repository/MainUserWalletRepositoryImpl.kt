@@ -3,6 +3,8 @@ package com.example.novaplustrader.data.repository
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
+import com.google.firebase.firestore.SetOptions
+import com.google.firebase.firestore.FieldValue
 import com.google.firebase.functions.FirebaseFunctions
 import com.example.novaplustrader.ui.model.Currency
 import kotlinx.coroutines.channels.awaitClose
@@ -29,10 +31,29 @@ class MainUserWalletRepositoryImpl(
                 when {
                     error != null -> close(error)
                     snapshot == null -> close(IllegalStateException("Unable to read the user wallet"))
-                    !snapshot.exists() -> trySend(MainUserWalletSnapshot())
+                    !snapshot.exists() -> {
+                        val defaultData = mapOf(
+                            "usdBalanceMinorUnits" to 0L,
+                            "kesBalanceMinorUnits" to 0L,
+                            "mode" to "live",
+                            "rewardClaimed" to false,
+                            "createdAt" to FieldValue.serverTimestamp()
+                        )
+                        walletDocument(userId).set(defaultData, SetOptions.merge())
+                        trySend(
+                            MainUserWalletSnapshot(
+                                usdBalanceMinorUnits = 0L,
+                                kesBalanceMinorUnits = 0L,
+                                mode = "live",
+                                initialized = true,
+                                rewardClaimed = false
+                            )
+                        )
+                    }
                     else -> {
                         val usd = snapshot.getLong("usdBalanceMinorUnits")
                         val kes = snapshot.getLong("kesBalanceMinorUnits")
+                        val claimed = snapshot.getBoolean("rewardClaimed") ?: false
                         if (usd == null || kes == null || usd < 0L || kes < 0L) {
                             close(IllegalStateException("The user wallet contains invalid balances"))
                         } else {
@@ -41,7 +62,8 @@ class MainUserWalletRepositoryImpl(
                                     usdBalanceMinorUnits = usd,
                                     kesBalanceMinorUnits = kes,
                                     mode = snapshot.getString("mode") ?: "testing",
-                                    initialized = true
+                                    initialized = true,
+                                    rewardClaimed = claimed
                                 )
                             )
                         }
@@ -111,6 +133,32 @@ class MainUserWalletRepositoryImpl(
                 message = response["message"] as? String ?: error("The wallet response omitted its message")
             )
         )
+    } catch (error: CancellationException) {
+        throw error
+    } catch (error: Exception) {
+        Result.failure(error)
+    }
+
+    override suspend fun claimFirstTimeReward(userId: String): Result<Unit> = try {
+        requireCurrentUser(userId)
+        val docRef = walletDocument(userId)
+        firestore.runTransaction { transaction ->
+            val snapshot = transaction.get(docRef)
+            val claimed = snapshot.getBoolean("rewardClaimed") ?: false
+            if (claimed) {
+                throw IllegalStateException("First-time reward has already been claimed.")
+            }
+            val currentUsd = snapshot.getLong("usdBalanceMinorUnits") ?: 0L
+            transaction.set(
+                docRef,
+                mapOf(
+                    "usdBalanceMinorUnits" to (currentUsd + 500L),
+                    "rewardClaimed" to true
+                ),
+                SetOptions.merge()
+            )
+        }.await()
+        Result.success(Unit)
     } catch (error: CancellationException) {
         throw error
     } catch (error: Exception) {
