@@ -72,7 +72,7 @@ fun AdminTransactionsScreen(
     val uiState by viewModel.uiState.collectAsState()
 
     val typeFilterOptions = listOf("ALL", "DEPOSIT", "WITHDRAWAL", "TRANSFER", "TRADE", "FEE", "REFUND", "ADJUSTMENT")
-    val statusFilterOptions = listOf("ALL", "PENDING", "PROCESSING", "COMPLETED", "FAILED", "CANCELLED", "REVERSED")
+    val statusFilterOptions = listOf("ALL", "SUBMITTED", "PENDING", "PROCESSING", "COMPLETED", "APPROVED", "FAILED", "CANCELLED", "REVERSED")
 
     Column(
         modifier = modifier
@@ -182,7 +182,20 @@ fun AdminTransactionsScreen(
                         TxDetailPair("Type", selectedTx.type)
                         TxDetailPair("Status", selectedTx.status)
                         TxDetailPair("Amount", formatTxAmount(selectedTx.amount, selectedTx.currency))
+                        selectedTx.providerReference?.let {
+                            TxDetailPair("M-Pesa Transaction Code", it)
+                        }
                         TxDetailPair("Backend Timestamp", selectedTx.timestamp)
+                    }
+
+                    if (selectedTx.type.equals("DEPOSIT", ignoreCase = true) &&
+                        selectedTx.status.equals("PENDING", ignoreCase = true)
+                    ) {
+                        com.example.novaplustrader.ui.components.PrimaryButton(
+                            text = "APPROVE DEPOSIT & CREDIT WALLET",
+                            onClick = { viewModel.approveDeposit(selectedTx) },
+                            isLoading = uiState.isLoading
+                        )
                     }
 
                     SecondaryButton(

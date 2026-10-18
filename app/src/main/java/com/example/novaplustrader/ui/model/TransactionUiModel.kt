@@ -13,6 +13,7 @@ enum class TransactionType {
 
 enum class TransactionStatus {
     COMPLETED,
+    SUBMITTED,
     PENDING,
     FAILED
 }

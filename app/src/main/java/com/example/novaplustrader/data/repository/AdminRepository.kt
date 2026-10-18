@@ -58,6 +58,8 @@ interface AdminRepository {
         pageSize: Int = 20
     ): Flow<List<AdminTransactionModel>>
 
+    suspend fun approveDeposit(userId: String, transactionId: String): Result<Boolean>
+
     fun getTrades(
         searchQuery: String = "",
         statusFilter: String? = null,

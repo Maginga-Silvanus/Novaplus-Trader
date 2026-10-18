@@ -30,11 +30,17 @@ interface WalletRepository {
     suspend fun requestRefund(request: RefundRequest): Result<FinancialTransaction>
     suspend fun requestReversal(request: ReversalRequest): Result<FinancialTransaction>
     suspend fun getFeeEstimate(type: FinancialTransactionType, amountMinorUnits: Long, currency: Currency): Result<FeeModel>
+    suspend fun lookupRecipient(
+        identifier: String,
+        lookupMethod: String,
+        walletType: String
+    ): Result<RecipientWalletLookup>
 
     suspend fun initiateDeposit(
         method: DepositMethod,
         amount: Double,
-        currency: Currency
+        currency: Currency,
+        providerReference: String? = null
     ): Result<TransactionUiModel>
 
     suspend fun initiateWithdrawal(
@@ -59,3 +65,8 @@ interface WalletRepository {
         userName: String
     ): String
 }
+
+data class RecipientWalletLookup(
+    val walletAvailable: Boolean,
+    val message: String
+)

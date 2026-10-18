@@ -7,6 +7,7 @@ import com.example.novaplustrader.ui.model.WalletUiModel
 data class HomeUiState(
     val isLoading: Boolean = false,
     val errorMessage: String? = null,
+    val notificationErrorMessage: String? = null,
     val cryptoPortfolioError: String? = null,
     val userName: String = "Leonard Lopez",
     val userInitials: String = "LL",

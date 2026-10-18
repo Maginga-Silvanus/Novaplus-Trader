@@ -145,6 +145,17 @@ fun NotificationCenterScreen(
                 contentPadding = PaddingValues(bottom = 100.dp, start = 16.dp, end = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
+                if (uiState.errorMessage != null) {
+                    item {
+                        Text(
+                            text = uiState.errorMessage.orEmpty(),
+                            color = TextMuted,
+                            fontSize = 12.sp,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
+
                 if (filteredNotifications.isEmpty()) {
                     item {
                         Box(

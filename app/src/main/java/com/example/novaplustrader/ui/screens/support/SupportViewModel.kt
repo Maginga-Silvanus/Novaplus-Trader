@@ -10,6 +10,7 @@ import com.example.novaplustrader.ui.screens.support.models.TicketCategory
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -32,9 +33,9 @@ class SupportViewModel(
                 }
             }
             launch {
-                repository.observeTickets().collect { tickets ->
-                    _uiState.update { it.copy(tickets = tickets) }
-                }
+                repository.observeTickets()
+                    .catch { error -> reportError(error, "Unable to load support tickets.") }
+                    .collect { tickets -> _uiState.update { it.copy(tickets = tickets) } }
             }
         }
     }
@@ -117,9 +118,9 @@ class SupportViewModel(
         _uiState.update { it.copy(selectedTicket = ticket) }
         if (ticket != null) {
             viewModelScope.launch {
-                repository.observeTicketMessages(ticket.id).collect { messages ->
-                    _uiState.update { it.copy(ticketMessages = messages) }
-                }
+                repository.observeTicketMessages(ticket.id)
+                    .catch { error -> reportError(error, "Unable to load support messages.") }
+                    .collect { messages -> _uiState.update { it.copy(ticketMessages = messages) } }
             }
         }
     }
@@ -136,7 +137,8 @@ class SupportViewModel(
 
         viewModelScope.launch {
             repository.sendTicketReply(ticket.id, text)
-            _uiState.update { it.copy(replyText = "") }
+                .onSuccess { _uiState.update { it.copy(replyText = "") } }
+                .onFailure { error -> reportError(error, "Failed to send reply.") }
         }
     }
 
@@ -146,5 +148,11 @@ class SupportViewModel(
 
     fun clearMessages() {
         _uiState.update { it.copy(errorMessage = null) }
+    }
+
+    private fun reportError(error: Throwable, fallbackMessage: String) {
+        _uiState.update {
+            it.copy(errorMessage = error.localizedMessage ?: fallbackMessage)
+        }
     }
 }

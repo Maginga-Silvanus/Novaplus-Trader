@@ -7,6 +7,7 @@
 - `users/{uid}/wallets/main` stores the USD and KES **TEST FUNDS** as integer minor units.
 - `users/{uid}/wallets/main/transactions/{id}` stores server-authored test deposits, withdrawals, and configured initial funding.
 - `users/{uid}/cryptoWallets/spot` stores internal portfolio metadata and paper-trading settings.
+- The same crypto portfolio document stores distinct Bitcoin, marketing, and trading wallet IDs, with marketing/trading balances in integer USD minor units. These are internal test wallets; their starting balances are zero.
 - `users/{uid}/cryptoWallets/spot/holdings/{assetId}` stores crypto quantities in integer atomic units, starting at zero.
 - `users/{uid}/cryptoWallets/spot/transactions/{id}` stores confirmed simulated purchases and sales only.
 - `users/{uid}/tradeRequests/{idempotencyKey}` stores the authoritative outcome for each paper-trade request.
@@ -69,9 +70,15 @@ Never use a profile document role as authority. Changes remain blocked unless a 
 
 ## Pending financial requests
 
-`createFinancialRequest` accepts authenticated deposit, withdrawal, and internal transfer requests. The callable derives the sender UID from the verified Firebase Auth token, validates the request type, currency, amount, method/destination/recipient, and idempotency key, and atomically writes an owner-scoped request and a `PENDING` main-wallet transaction record. A retry with the same key and identical payload returns the original record; reusing a key for different fields is rejected. For transfers the callable resolves the target to a Firebase Auth user before recording it. It never updates wallet balances, reserves or debits funds, credits a recipient, contacts payment providers, or claims settlement. A pending record is only an accepted request, not proof that payment or transfer occurred. Refunds, reversals, and fee estimates remain unavailable until trusted processing is configured.
+`createFinancialRequest` accepts authenticated deposit, withdrawal, and internal transfer requests. The callable derives the sender UID from the verified Firebase Auth token, validates the request type, currency, amount, method/destination/recipient, and idempotency key, and atomically writes an owner-scoped request and a main-wallet transaction record. Paybill submissions must be in KES and include a valid M-Pesa transaction code; the code is reserved once to reject duplicate submissions. Their status starts as `SUBMITTED`; `advancePaybillDepositStatus` moves eligible requests to `PENDING` after at least one minute. A retry with the same key and identical payload returns the original record; reusing a key for different fields is rejected. For transfers the callable resolves the target to a Firebase Auth user before recording it. Non-Paybill financial requests remain pending and do not update wallet balances, reserve or debit funds, credit a recipient, or contact payment providers.
 
-The app reads owner transaction history from `users/{uid}/wallets/main/transactions`. Clients cannot create or modify these records or `users/{uid}/financialRequests`; only Admin SDK-backed Functions can write them. The request callable does not accept a client-provided UID, wallet ID, PIN, status, balance, provider reference, or settlement state. Do not pass payment card credentials or security PINs to this endpoint.
+An authorized `SUPER_ADMIN`, `ADMIN`, or `OPERATIONS` user can approve a pending Paybill request through `approvePaybillDeposit`. Approval reads the amount and currency from the server-authored request and atomically credits the matching wallet, changes the request/transaction state to `APPROVED`, and writes a user notification. Approval is idempotent. Admins must verify the M-Pesa code and amount independently before approval; this is a manual review flow, not an M-Pesa payment-provider integration. Refunds, reversals, and fee estimates remain unavailable until trusted processing is configured.
+
+USD withdrawal requests below $10.00 are rejected by both the client and callable. Withdrawal requests above the minimum are still pending requests only; no payout occurs and no wallet is debited.
+
+The app reads owner transaction history from `users/{uid}/wallets/main/transactions`. Clients cannot create or modify these records or `users/{uid}/financialRequests`; only Admin SDK-backed Functions can write them. The request callable does not accept a client-provided UID, wallet ID, PIN, status, balance, or settlement state. A provider reference is accepted only for Paybill deposits and is checked by the operations team. Do not pass payment card credentials or security PINs to this endpoint.
+
+`lookupTransferRecipient` resolves a submitted email, phone number, or NovaPlus wallet code on the server and returns only whether the requested user/crypto wallet exists. It does not return recipient profile data. This endpoint is for recipient confirmation only; it does not authorize or settle a transfer.
 
 ## Paper crypto trading
 

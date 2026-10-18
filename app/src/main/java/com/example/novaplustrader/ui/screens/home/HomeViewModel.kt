@@ -103,9 +103,20 @@ class HomeViewModel(
 
     private fun observeUnreadNotifications() {
         viewModelScope.launch {
-            notificationRepository.observeUnreadCount().collect { count ->
-                _uiState.update { it.copy(unreadNotificationsCount = count) }
-            }
+            notificationRepository.observeUnreadCount()
+                .catch { error ->
+                    _uiState.update {
+                        it.copy(
+                            notificationErrorMessage = error.localizedMessage
+                                ?: "Unable to load notification count."
+                        )
+                    }
+                }
+                .collect { count ->
+                    _uiState.update {
+                        it.copy(unreadNotificationsCount = count, notificationErrorMessage = null)
+                    }
+                }
         }
     }
 

@@ -28,6 +28,7 @@ fun StatusBadge(
 ) {
     val (backgroundColor, textColor, label) = when (status) {
         TransactionStatus.COMPLETED -> Triple(FinancialGreenGlow, FinancialGreen, "Completed")
+        TransactionStatus.SUBMITTED -> Triple(ElectricLimeSurface, ElectricLime, "Submitted")
         TransactionStatus.PENDING -> Triple(ElectricLimeSurface, ElectricLime, "Pending")
         TransactionStatus.FAILED -> Triple(FinancialRedGlow, FinancialRed, "Failed")
     }

@@ -102,7 +102,8 @@ data class AdminTransactionModel(
     val status: String, // PENDING, PROCESSING, COMPLETED, FAILED, CANCELLED, REVERSED
     val amount: Double,
     val currency: String,
-    val timestamp: String
+    val timestamp: String,
+    val providerReference: String? = null
 )
 
 data class AdminTradeModel(

@@ -113,6 +113,17 @@ fun HomeScreen(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(bottom = 100.dp)
             ) {
+                if (uiState.notificationErrorMessage != null) {
+                    item {
+                        Text(
+                            text = "Notifications unavailable: ${uiState.notificationErrorMessage}",
+                            color = TextMuted,
+                            fontSize = 12.sp,
+                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
+                        )
+                    }
+                }
+
                 // Total Balance Card
                 item {
                     val currentBalance = if (uiState.selectedCurrency == Currency.USD) {

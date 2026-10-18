@@ -10,7 +10,7 @@ function validateFinancialRequest(data) {
   }
   const allowedFields = new Set([
     "type", "idempotencyKey", "currency", "amountMinorUnits", "method",
-    "destination", "recipientId", "note",
+    "destination", "recipientId", "note", "providerReference",
   ]);
   if (Object.keys(data).some((key) => !allowedFields.has(key))) {
     throw new Error("Financial request contains unsupported fields.");
@@ -39,8 +39,21 @@ function validateFinancialRequest(data) {
   if (data.type === "DEPOSIT") {
     if (!depositMethods.has(data.method)) throw new Error("Unsupported deposit method.");
     request.method = data.method;
+    if (data.method === "PAYBILL") {
+      if (data.currency !== "KES") throw new Error("Paybill deposits must be submitted in KES.");
+      if (typeof data.providerReference !== "string" ||
+          !/^[A-Z0-9]{6,12}$/.test(data.providerReference.trim().toUpperCase())) {
+        throw new Error("Provide a valid M-Pesa transaction code.");
+      }
+      request.providerReference = data.providerReference.trim().toUpperCase();
+    } else if (data.providerReference) {
+      throw new Error("A payment reference is only valid for a Paybill deposit.");
+    }
   } else if (data.type === "WITHDRAWAL") {
     if (!withdrawalMethods.has(data.method)) throw new Error("Unsupported withdrawal method.");
+    if (data.currency === "USD" && data.amountMinorUnits < 1_000) {
+      throw new Error("USD withdrawals must be at least $10.00.");
+    }
     if (typeof data.destination !== "string" ||
         data.destination.trim().length < 3 || data.destination.length > 256) {
       throw new Error("Provide a valid withdrawal destination.");
@@ -88,10 +101,11 @@ function createPendingFinancialRecord(uid, request, createdAt) {
     amountMinorUnits: request.amountMinorUnits,
     feeMinorUnits: 0,
     netAmountMinorUnits: request.amountMinorUnits,
-    status: "PENDING",
+    status: request.method === "PAYBILL" ? "SUBMITTED" : "PENDING",
     reference: request.idempotencyKey,
     description: descriptions[request.type],
     ...(request.method ? { method: request.method } : {}),
+    ...(request.providerReference ? { providerReference: request.providerReference } : {}),
     ...(request.destination ? { destination: request.destination } : {}),
     ...(request.recipientId ? { recipientId: request.recipientId } : {}),
     ...(request.note ? { note: request.note } : {}),

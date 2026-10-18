@@ -3,12 +3,24 @@ package com.example.novaplustrader.data.repository
 import com.example.novaplustrader.ui.screens.trading.models.TradeDirection
 import kotlinx.coroutines.flow.Flow
 
+data class CryptoSubWallet(
+    val id: String,
+    val name: String,
+    val purpose: String,
+    val assetSymbol: String,
+    val balance: Double,
+    val receiveAddress: String
+)
+
 data class CryptoWalletSnapshot(
     val bitcoinWalletId: String,
+    val marketingWalletId: String = "",
+    val tradingWalletId: String = "",
     val assetBalances: Map<String, Double>,
     val mode: String,
     val paperTradeFeeBps: Int = 10,
-    val minimumTradeUsdMinorUnits: Long = 100L
+    val minimumTradeUsdMinorUnits: Long = 100L,
+    val subWallets: List<CryptoSubWallet> = emptyList()
 ) {
     val isPaperTrading: Boolean get() = mode == "paper"
 }

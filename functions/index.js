@@ -1,8 +1,9 @@
-const { randomBytes } = require("node:crypto");
+const { createHash, randomBytes } = require("node:crypto");
 const admin = require("firebase-admin");
 const { getAuth } = require("firebase-admin/auth");
 const { FieldValue, getFirestore } = require("firebase-admin/firestore");
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
+const { onSchedule } = require("firebase-functions/v2/scheduler");
 const {
   applyTestWalletOperation,
   authenticatedUid,
@@ -68,16 +69,25 @@ function financialTransactionRef(uid, idempotencyKey) {
   return mainWalletRef(uid).collection("transactions").doc(idempotencyKey);
 }
 
+function financialRequestReceiptRef(providerReference) {
+  const key = createHash("sha256").update(providerReference).digest("hex");
+  return db.collection("paybillReceipts").doc(key);
+}
+
 async function resolveInternalRecipient(recipientId, senderUid) {
   try {
     let recipient;
-    const value = recipientId.trim();
+    const value = recipientId.trim().replace(/^#/, "");
     if (value.startsWith("NV-")) {
       recipient = await getAuth().getUser(value.slice(3));
     } else if (value.includes("@")) {
       recipient = await getAuth().getUserByEmail(value);
     } else if (value.startsWith("+")) {
       recipient = await getAuth().getUserByPhoneNumber(value);
+    } else if (/^0\d{9}$/.test(value)) {
+      recipient = await getAuth().getUserByPhoneNumber(`+254${value.slice(1)}`);
+    } else if (/^254\d{9}$/.test(value)) {
+      recipient = await getAuth().getUserByPhoneNumber(`+${value}`);
     } else {
       recipient = await getAuth().getUser(value);
     }
@@ -90,9 +100,97 @@ async function resolveInternalRecipient(recipientId, senderUid) {
   }
 }
 
+exports.lookupTransferRecipient = onCall(async (call) => {
+  const senderUid = requireAuth(call);
+  const identifier = typeof call.data?.identifier === "string"
+    ? call.data.identifier.trim().replace(/^#/, "")
+    : "";
+  const method = call.data?.method;
+  const targetWallet = call.data?.targetWallet;
+  if (!identifier || identifier.length > 256 ||
+      !["EMAIL", "WALLET_CODE", "PHONE_KYC"].includes(method) ||
+      !["USER_WALLET", "BITCOIN_WALLET"].includes(targetWallet)) {
+    throw new HttpsError("invalid-argument", "Enter a supported recipient and wallet type.");
+  }
+
+  try {
+    let recipient;
+    if (method === "EMAIL") {
+      recipient = await getAuth().getUserByEmail(identifier);
+    } else if (method === "PHONE_KYC") {
+      const phoneNumber = identifier.startsWith("+")
+        ? identifier
+        : /^0\d{9}$/.test(identifier)
+          ? `+254${identifier.slice(1)}`
+          : /^254\d{9}$/.test(identifier)
+            ? `+${identifier}`
+            : "";
+      if (!phoneNumber) {
+        return {
+          exists: false,
+          walletAvailable: false,
+          message: "Enter a valid phone number",
+        };
+      }
+      recipient = await getAuth().getUserByPhoneNumber(phoneNumber);
+    } else {
+      const isNovaWalletCode = identifier.toUpperCase().startsWith("NV-");
+      if (isNovaWalletCode) {
+        recipient = await getAuth().getUser(identifier.slice(3));
+      } else {
+        const matches = await db.collectionGroup("cryptoWallets")
+          .where("bitcoinWalletId", "==", identifier)
+          .limit(2)
+          .get();
+        const match = matches.docs.find((document) => document.id === "spot");
+        if (!match) {
+          return {
+            exists: false,
+            walletAvailable: false,
+            message: "Recipient wallet was not found",
+          };
+        }
+        const ownerUid = match.ref.parent.parent?.id;
+        if (!ownerUid) throw new HttpsError("internal", "The wallet record has no owner.");
+        recipient = await getAuth().getUser(ownerUid);
+      }
+    }
+    if (recipient.uid === senderUid) {
+      return {
+        exists: false,
+        walletAvailable: false,
+        message: "You cannot send money to your own wallet",
+      };
+    }
+    const destinationRef = targetWallet === "USER_WALLET"
+      ? mainWalletRef(recipient.uid)
+      : portfolioRef(recipient.uid);
+    const wallet = await destinationRef.get();
+    return {
+      exists: wallet.exists,
+      walletAvailable: wallet.exists,
+      message: wallet.exists ? "Recipient wallet found" : "Recipient does not have this wallet",
+    };
+  } catch (error) {
+    if (["auth/user-not-found", "auth/invalid-email", "auth/invalid-phone-number"].includes(error.code)) {
+      return {
+        exists: false,
+        walletAvailable: false,
+        message: "Recipient or requested wallet was not found",
+      };
+    }
+    if (error instanceof HttpsError) throw error;
+    throw new HttpsError("unavailable", "Recipient verification is currently unavailable.");
+  }
+});
+
 function publicPortfolio(data, holdings) {
   return {
     bitcoinWalletId: data.bitcoinWalletId,
+    marketingWalletId: data.marketingWalletId,
+    tradingWalletId: data.tradingWalletId,
+    marketingBalanceMinorUnits: data.marketingBalanceMinorUnits || 0,
+    tradingBalanceMinorUnits: data.tradingBalanceMinorUnits || 0,
     mode: data.mode,
     paperTradeFeeBps: data.paperTradeFeeBps ?? config.tradeFeeBps,
     minimumTradeUsdMinorUnits: data.minimumTradeUsdMinorUnits ?? config.minimumTradeUsdMinorUnits,
@@ -103,6 +201,10 @@ function publicPortfolio(data, holdings) {
 function storedPortfolio(data) {
   return {
     bitcoinWalletId: data.bitcoinWalletId,
+    marketingWalletId: data.marketingWalletId,
+    tradingWalletId: data.tradingWalletId,
+    marketingBalanceMinorUnits: data.marketingBalanceMinorUnits || 0,
+    tradingBalanceMinorUnits: data.tradingBalanceMinorUnits || 0,
     mode: data.mode,
     paperTradeFeeBps: config.tradeFeeBps,
     minimumTradeUsdMinorUnits: config.minimumTradeUsdMinorUnits,
@@ -174,6 +276,8 @@ exports.getOrCreateCryptoPortfolio = onCall(async (request) => {
   const ref = portfolioRef(uid);
   const mainRef = mainWalletRef(uid);
   const id = `BTC-${uid}-${randomBytes(16).toString("hex").toUpperCase()}`;
+  const marketingWalletId = `MKT-${uid}`;
+  const tradingWalletId = `TRD-${uid}`;
   const result = await db.runTransaction(async (transaction) => {
     const holdingsRefs = PORTFOLIO_ASSETS.map((asset) => holdingRef(uid, asset));
     const snapshots = await Promise.all([
@@ -185,17 +289,31 @@ exports.getOrCreateCryptoPortfolio = onCall(async (request) => {
     const existingMainWallet = snapshots[1];
     const portfolio = existingPortfolio.exists
       ? existingPortfolio.data()
-      : createPortfolio("paper", id);
+      : {
+        ...createPortfolio("paper", id),
+        marketingWalletId,
+        tradingWalletId,
+        marketingBalanceMinorUnits: 0,
+        tradingBalanceMinorUnits: 0,
+      };
     if (!existingPortfolio.exists) transaction.create(ref, storedPortfolio(portfolio));
     else {
       transaction.update(ref, {
         mode: "paper",
         paperTradeFeeBps: config.tradeFeeBps,
         minimumTradeUsdMinorUnits: config.minimumTradeUsdMinorUnits,
+        marketingWalletId: portfolio.marketingWalletId || marketingWalletId,
+        tradingWalletId: portfolio.tradingWalletId || tradingWalletId,
+        marketingBalanceMinorUnits: portfolio.marketingBalanceMinorUnits || 0,
+        tradingBalanceMinorUnits: portfolio.tradingBalanceMinorUnits || 0,
       });
       portfolio.mode = "paper";
       portfolio.paperTradeFeeBps = config.tradeFeeBps;
       portfolio.minimumTradeUsdMinorUnits = config.minimumTradeUsdMinorUnits;
+      portfolio.marketingWalletId = portfolio.marketingWalletId || marketingWalletId;
+      portfolio.tradingWalletId = portfolio.tradingWalletId || tradingWalletId;
+      portfolio.marketingBalanceMinorUnits = portfolio.marketingBalanceMinorUnits || 0;
+      portfolio.tradingBalanceMinorUnits = portfolio.tradingBalanceMinorUnits || 0;
     }
 
     let mainWallet;
@@ -375,14 +493,19 @@ exports.createFinancialRequest = onCall(async (call) => {
   if (request.type === "TRANSFER") {
     request.recipientId = await resolveInternalRecipient(request.recipientId, uid);
   }
+  const receiptRef = request.method === "PAYBILL"
+    ? financialRequestReceiptRef(request.providerReference)
+    : null;
   const fingerprint = financialRequestFingerprint(request);
   const requestRef = financialRequestRef(uid, request.idempotencyKey);
   const transactionRef = financialTransactionRef(uid, request.idempotencyKey);
   const result = await db.runTransaction(async (transaction) => {
-    const [existingRequest, existingTransaction] = await Promise.all([
+    const reads = [
       transaction.get(requestRef),
       transaction.get(transactionRef),
-    ]);
+    ];
+    if (receiptRef) reads.push(transaction.get(receiptRef));
+    const [existingRequest, existingTransaction, receiptSnapshot] = await Promise.all(reads);
     if (existingRequest.exists || existingTransaction.exists) {
       const existing = existingRequest.exists
         ? existingRequest.data()
@@ -399,6 +522,9 @@ exports.createFinancialRequest = onCall(async (call) => {
         duplicate: true,
       };
     }
+    if (receiptSnapshot?.exists) {
+      throw new HttpsError("already-exists", "This M-Pesa transaction code has already been submitted.");
+    }
 
     const createdAt = FieldValue.serverTimestamp();
     const record = {
@@ -407,6 +533,14 @@ exports.createFinancialRequest = onCall(async (call) => {
     };
     transaction.create(requestRef, record);
     transaction.create(transactionRef, record);
+    if (receiptRef) {
+      transaction.create(receiptRef, {
+        userId: uid,
+        transactionId: request.idempotencyKey,
+        providerReference: request.providerReference,
+        createdAt,
+      });
+    }
     return {
       ...record,
       createdAtMs: Date.now(),
@@ -415,6 +549,134 @@ exports.createFinancialRequest = onCall(async (call) => {
   });
   const { createdAt, updatedAt, ...response } = result;
   return { ...response, createdAtMs: result.createdAtMs || Date.now() };
+});
+
+exports.advancePaybillDepositStatus = onSchedule("every 1 minutes", async () => {
+  const cutoff = Date.now() - 60_000;
+  const submitted = await db.collectionGroup("transactions")
+    .where("status", "==", "SUBMITTED")
+    .limit(500)
+    .get();
+
+  for (const document of submitted.docs) {
+    const createdAt = document.get("createdAt");
+    if (document.get("type") !== "DEPOSIT" ||
+        document.get("method") !== "PAYBILL" ||
+        !createdAt?.toMillis ||
+        createdAt.toMillis() > cutoff) {
+      continue;
+    }
+
+    const userId = document.ref.parent.parent?.parent.parent?.id;
+    if (!userId) continue;
+    const requestRef = financialRequestRef(userId, document.id);
+    await db.runTransaction(async (transaction) => {
+      const [current, request] = await Promise.all([
+        transaction.get(document.ref),
+        transaction.get(requestRef),
+      ]);
+      if (!current.exists || current.get("status") !== "SUBMITTED") return;
+      transaction.update(document.ref, {
+        status: "PENDING",
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      if (request.exists) {
+        transaction.update(requestRef, {
+          status: "PENDING",
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+      }
+    });
+  }
+});
+
+exports.approvePaybillDeposit = onCall(async (call) => {
+  const uid = requireAuth(call);
+  const role = call.auth.token.adminRole;
+  if (!["SUPER_ADMIN", "ADMIN", "OPERATIONS"].includes(role)) {
+    throw new HttpsError("permission-denied", "An authorized operations administrator is required.");
+  }
+  const userId = typeof call.data?.userId === "string" ? call.data.userId.trim() : "";
+  const transactionId = typeof call.data?.transactionId === "string"
+    ? call.data.transactionId.trim()
+    : "";
+  if (!userId || !transactionId) {
+    throw new HttpsError("invalid-argument", "A user and deposit transaction are required.");
+  }
+
+  const walletRef = mainWalletRef(userId);
+  const transactionRef = financialTransactionRef(userId, transactionId);
+  const requestRef = financialRequestRef(userId, transactionId);
+  const notificationRef = db.collection("users").doc(userId).collection("notifications").doc();
+  const result = await db.runTransaction(async (transaction) => {
+    const [deposit, wallet, request] = await Promise.all([
+      transaction.get(transactionRef),
+      transaction.get(walletRef),
+      transaction.get(requestRef),
+    ]);
+    if (!deposit.exists ||
+        deposit.get("userId") !== userId ||
+        deposit.get("type") !== "DEPOSIT" ||
+        deposit.get("method") !== "PAYBILL") {
+      throw new HttpsError("not-found", "Paybill deposit request was not found.");
+    }
+    if (deposit.get("status") === "APPROVED") return { duplicate: true };
+    if (deposit.get("status") !== "PENDING") {
+      throw new HttpsError("failed-precondition", "The deposit must be pending before approval.");
+    }
+    const amountMinorUnits = deposit.get("amountMinorUnits");
+    const currency = deposit.get("currency");
+    const balanceField = currency === "KES" ? "kesBalanceMinorUnits" : "usdBalanceMinorUnits";
+    if (!Number.isSafeInteger(amountMinorUnits) || amountMinorUnits <= 0 ||
+        !["USD", "KES"].includes(currency)) {
+      throw new HttpsError("failed-precondition", "Deposit has an invalid amount or currency.");
+    }
+    const currentBalance = wallet.exists ? wallet.get(balanceField) || 0 : 0;
+    if (!Number.isSafeInteger(currentBalance) || currentBalance < 0) {
+      throw new HttpsError("failed-precondition", "The destination wallet contains an invalid balance.");
+    }
+    const nextBalance = currentBalance + amountMinorUnits;
+    if (!Number.isSafeInteger(nextBalance)) {
+      throw new HttpsError("failed-precondition", "Wallet balance would exceed the supported limit.");
+    }
+
+    if (wallet.exists) {
+      transaction.update(walletRef, {
+        [balanceField]: nextBalance,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    } else {
+      transaction.create(walletRef, {
+        usdBalanceMinorUnits: currency === "USD" ? amountMinorUnits : 0,
+        kesBalanceMinorUnits: currency === "KES" ? amountMinorUnits : 0,
+        mode: "testing",
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    }
+    const approvedFields = {
+      status: "APPROVED",
+      approvedBy: uid,
+      completedAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    };
+    transaction.update(transactionRef, approvedFields);
+    if (request.exists) {
+      transaction.update(requestRef, approvedFields);
+    }
+    transaction.create(notificationRef, {
+      userId,
+      title: "Paybill deposit approved",
+      body: "Your M-Pesa Paybill deposit has been approved and added to your wallet.",
+      category: "WALLET",
+      timestamp: "Just now",
+      isRead: false,
+      deepLink: "transaction_history",
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    return { duplicate: false };
+  });
+  return { status: "APPROVED", duplicate: result.duplicate };
 });
 
 exports.submitSpotTradeRequest = onCall(async (call) => {

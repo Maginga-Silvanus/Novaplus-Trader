@@ -64,7 +64,7 @@ class MainUserWalletRepositoryImpl(
                     error != null -> close(error)
                     snapshot == null -> close(IllegalStateException("Unable to read test wallet transactions"))
                     else -> try {
-                        trySend(snapshot.documents.map { document ->
+                        trySend(snapshot.documents.filter { it.getBoolean("testOnly") == true }.map { document ->
                             TestWalletTransaction(
                                 id = document.id,
                                 operation = document.getString("operation")

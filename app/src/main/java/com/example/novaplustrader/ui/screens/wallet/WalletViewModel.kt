@@ -33,6 +33,8 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.util.Locale
 import java.util.UUID
@@ -48,6 +50,7 @@ class WalletViewModel(
 
     private val _uiState = MutableStateFlow(WalletUiState())
     val uiState: StateFlow<WalletUiState> = _uiState.asStateFlow()
+    private var recipientLookupJob: Job? = null
 
     init {
         observeWalletRepository()
@@ -189,10 +192,10 @@ class WalletViewModel(
                                         _uiState.update { current ->
                                             current.copy(
                                                 usdBalance = wallet.usdBalance,
-                                                usdPendingBalance = 0.0,
+                                                usdPendingBalance = current.pendingDepositBalance(Currency.USD),
                                                 usdLockedBalance = 0.0,
                                                 kesBalance = wallet.kesBalance,
-                                                kesPendingBalance = 0.0,
+                                                kesPendingBalance = current.pendingDepositBalance(Currency.KES),
                                                 kesLockedBalance = 0.0,
                                                 wallets = listOf(
                                                     WalletUiModel(
@@ -213,7 +216,11 @@ class WalletViewModel(
                                                         cardNumberPlaceholder = "KES · TEST FUNDS",
                                                         isPrimary = false
                                                     )
-                                                )
+                                                ),
+                                                transactions = current.financialTransactions.map { it.toUiModel() } +
+                                                    current.transactions.filter { transaction ->
+                                                        current.financialTransactions.none { it.transactionId == transaction.id }
+                                                    }
                                             )
                                         }
                                     }
@@ -227,7 +234,7 @@ class WalletViewModel(
                                     }
                                     .collect { records ->
                                         _uiState.update { current ->
-                                            current.copy(transactions = records.map { transaction ->
+                                            val testTransactions = records.map { transaction ->
                                                 val isDeposit = transaction.operation == "DEPOSIT"
                                                 val isCryptoBuy = transaction.operation == "CRYPTO_BUY"
                                                 val isCryptoSell = transaction.operation == "CRYPTO_SELL"
@@ -255,7 +262,11 @@ class WalletViewModel(
                                                         else -> TransactionStatus.FAILED
                                                     }
                                                 )
-                                            })
+                                            }
+                                            current.copy(
+                                                transactions = current.financialTransactions.map { it.toUiModel() } +
+                                                    testTransactions
+                                            )
                                         }
                                     }
                             }
@@ -272,7 +283,17 @@ class WalletViewModel(
                         }
                     }
                     .collect { finTxs ->
-                        _uiState.update { it.copy(financialTransactions = finTxs) }
+                        _uiState.update { current ->
+                            val testTransactions = current.transactions.filter { transaction ->
+                                current.financialTransactions.none { it.transactionId == transaction.id }
+                            }
+                            current.copy(
+                                financialTransactions = finTxs,
+                                usdPendingBalance = finTxs.pendingDepositBalance(Currency.USD),
+                                kesPendingBalance = finTxs.pendingDepositBalance(Currency.KES),
+                                transactions = finTxs.map { it.toUiModel() } + testTransactions
+                            )
+                        }
                     }
             }
         }
@@ -305,6 +326,10 @@ class WalletViewModel(
 
     fun updateMpesaPhoneNumber(phone: String) {
         _uiState.update { it.copy(mpesaPhoneNumber = phone, validationError = null) }
+    }
+
+    fun updateMpesaPaybillCode(code: String) {
+        _uiState.update { it.copy(mpesaPaybillCode = code, validationError = null) }
     }
 
     fun selectBankName(bankName: String) {
@@ -375,21 +400,74 @@ class WalletViewModel(
             _uiState.update { it.copy(validationError = "Enter a valid deposit amount") }
             return
         }
+        if (state.selectedDepositMethod == DepositMethod.PAYBILL && state.mpesaPaybillCode.isBlank()) {
+            _uiState.update { it.copy(isDepositConfirmOpen = false, validationError = "Please enter your M-Pesa transaction code") }
+            return
+        }
+        if (state.selectedDepositMethod == DepositMethod.PAYBILL &&
+            !state.mpesaPaybillCode.matches(Regex("[A-Z0-9]{6,12}"))
+        ) {
+            _uiState.update {
+                it.copy(isDepositConfirmOpen = false, validationError = "Enter a valid M-Pesa transaction code")
+            }
+            return
+        }
         _uiState.update { it.copy(isDepositConfirmOpen = false, isLoading = true, testWalletNotice = null) }
         viewModelScope.launch {
             val result = repository.initiateDeposit(
                 method = state.selectedDepositMethod,
                 amount = amount,
-                currency = state.selectedCurrency
+                currency = state.selectedCurrency,
+                providerReference = state.mpesaPaybillCode.takeIf {
+                    state.selectedDepositMethod == DepositMethod.PAYBILL
+                }
             )
             result.onSuccess { tx ->
+                val isPaybill = state.selectedDepositMethod == DepositMethod.PAYBILL
+                val initialTx = if (isPaybill) {
+                    tx.copy(
+                        subtitle = "PAYBILL 522522 · Code: ${state.mpesaPaybillCode}",
+                        status = TransactionStatus.SUBMITTED
+                    )
+                } else tx
+
                 _uiState.update {
                     it.copy(
                         isLoading = false,
-                        testWalletNotice = "Deposit request recorded as pending. No payment was initiated and no balance was credited.",
-                        lastCompletedTransaction = tx,
+                        testWalletNotice = if (isPaybill)
+                            "Paybill Deposit Submitted (Code: ${state.mpesaPaybillCode}). Status: SUBMITTED (transitions to PENDING in 1 min, awaiting admin approval)."
+                        else
+                            "Deposit request recorded as pending. Awaiting processing.",
+                        lastCompletedTransaction = initialTx,
                         errorMessage = null
                     )
+                }
+
+                if (isPaybill) {
+                    val formattedAmt = com.example.novaplustrader.ui.util.Formatters.formatCurrency(amount, state.selectedCurrency)
+                    notificationRepository.saveNotification(
+                        com.example.novaplustrader.ui.screens.notifications.models.NotificationModel(
+                            id = "notif_${UUID.randomUUID().toString().take(8)}",
+                            title = "Paybill Deposit Submitted - $formattedAmt",
+                            body = "Paybill 522522 / Acc 1321188617 (Code: ${state.mpesaPaybillCode}). Status: SUBMITTED (pending admin approval).",
+                            category = com.example.novaplustrader.ui.screens.notifications.models.NotificationCategory.WALLET,
+                            timestamp = "Just now",
+                            isRead = false,
+                            deepLink = "transaction_history"
+                        )
+                    )
+
+                    launch {
+                        kotlinx.coroutines.delay(60_000)
+                        _uiState.update { current ->
+                            current.copy(
+                                testWalletNotice = "Paybill Deposit Status: PENDING admin approval.",
+                                lastCompletedTransaction = current.lastCompletedTransaction
+                                    ?.takeIf { it.id == tx.id }
+                                    ?.copy(status = TransactionStatus.PENDING)
+                            )
+                        }
+                    }
                 }
             }.onFailure { error ->
                 _uiState.update {
@@ -454,6 +532,10 @@ class WalletViewModel(
 
         if (!amount.isFinite() || amount <= 0) {
             _uiState.update { it.copy(validationError = "Please enter a valid withdrawal amount") }
+            return
+        }
+        if (_uiState.value.selectedCurrency == Currency.USD && amount < 10.0) {
+            _uiState.update { it.copy(validationError = "The minimum USD withdrawal is $10.00") }
             return
         }
         if (kotlin.math.abs(amount * 100.0 - kotlin.math.round(amount * 100.0)) > 1e-8) {
@@ -540,18 +622,86 @@ class WalletViewModel(
 
     // --- SEND MONEY FLOW ---
     fun selectSendLookupMethod(method: String) {
-        _uiState.update { it.copy(sendLookupMethod = method, recipientId = "", validationError = null) }
+        recipientLookupJob?.cancel()
+        _uiState.update {
+            it.copy(
+                sendLookupMethod = method,
+                recipientId = "",
+                recipientName = "",
+                isCheckingRecipient = false,
+                recipientVerificationStatus = null,
+                isRecipientVerifiedInDb = false,
+                validationError = null
+            )
+        }
     }
 
     fun selectRecipientWalletType(walletType: String) {
         _uiState.update {
-            it.copy(recipientWalletType = walletType, recipientName = "", validationError = null)
+            it.copy(
+                recipientWalletType = walletType,
+                recipientName = "",
+                isCheckingRecipient = false,
+                recipientVerificationStatus = null,
+                isRecipientVerifiedInDb = false,
+                validationError = null
+            )
         }
+        scheduleRecipientLookup(_uiState.value.recipientId)
     }
 
     fun updateRecipientId(id: String) {
         _uiState.update {
-            it.copy(recipientId = id, recipientName = "", validationError = null)
+            it.copy(
+                recipientId = id,
+                recipientName = "",
+                isCheckingRecipient = false,
+                recipientVerificationStatus = null,
+                isRecipientVerifiedInDb = false,
+                validationError = null
+            )
+        }
+        scheduleRecipientLookup(id)
+    }
+
+    private fun scheduleRecipientLookup(identifier: String) {
+        recipientLookupJob?.cancel()
+        if (identifier.isBlank()) return
+        val lookupState = _uiState.value
+        _uiState.update { it.copy(isCheckingRecipient = true, recipientVerificationStatus = null) }
+        recipientLookupJob = viewModelScope.launch {
+            delay(350)
+            if (_uiState.value.recipientId != identifier) return@launch
+            repository.lookupRecipient(
+                identifier = identifier,
+                lookupMethod = lookupState.sendLookupMethod,
+                walletType = lookupState.recipientWalletType
+            ).onSuccess { lookup ->
+                _uiState.update { current ->
+                    if (current.recipientId != identifier ||
+                        current.sendLookupMethod != lookupState.sendLookupMethod ||
+                        current.recipientWalletType != lookupState.recipientWalletType
+                    ) {
+                        current
+                    } else {
+                        current.copy(
+                            isCheckingRecipient = false,
+                            isRecipientVerifiedInDb = lookup.walletAvailable,
+                            recipientVerificationStatus = lookup.message
+                        )
+                    }
+                }
+            }.onFailure { error ->
+                _uiState.update { current ->
+                    if (current.recipientId != identifier) current
+                    else current.copy(
+                        isCheckingRecipient = false,
+                        isRecipientVerifiedInDb = false,
+                        recipientVerificationStatus = error.localizedMessage
+                            ?: "Unable to verify recipient right now"
+                    )
+                }
+            }
         }
     }
 
@@ -576,6 +726,18 @@ class WalletViewModel(
 
         if (_uiState.value.recipientId.isBlank()) {
             _uiState.update { it.copy(validationError = "Recipient address, email, or phone is required") }
+            return
+        }
+        if (!_uiState.value.isRecipientVerifiedInDb) {
+            _uiState.update {
+                it.copy(
+                    validationError = if (it.isCheckingRecipient) {
+                        "Wait for recipient verification to finish"
+                    } else {
+                        it.recipientVerificationStatus ?: "Verify that the recipient wallet exists before sending"
+                    }
+                )
+            }
             return
         }
         if (amount <= 0) {
@@ -800,9 +962,48 @@ class WalletViewModel(
 
     private fun FinancialTransaction.toWalletTransactionStatus(): TransactionStatus = when (status) {
         FinancialTransactionStatus.COMPLETED -> TransactionStatus.COMPLETED
+        FinancialTransactionStatus.SUBMITTED -> TransactionStatus.SUBMITTED
         FinancialTransactionStatus.FAILED,
         FinancialTransactionStatus.CANCELLED,
         FinancialTransactionStatus.REVERSED -> TransactionStatus.FAILED
         else -> TransactionStatus.PENDING
     }
+
+    private fun FinancialTransaction.toUiModel(): TransactionUiModel {
+        val type = when (type) {
+            com.example.novaplustrader.domain.model.ledger.FinancialTransactionType.DEPOSIT ->
+                TransactionType.DEPOSIT
+            com.example.novaplustrader.domain.model.ledger.FinancialTransactionType.WITHDRAWAL ->
+                TransactionType.WITHDRAWAL
+            com.example.novaplustrader.domain.model.ledger.FinancialTransactionType.TRANSFER ->
+                TransactionType.TRANSFER
+            com.example.novaplustrader.domain.model.ledger.FinancialTransactionType.TRADE ->
+                TransactionType.TRADE
+            else -> TransactionType.PAYMENT
+        }
+        return TransactionUiModel(
+            id = transactionId,
+            title = description.ifBlank { "${type.name} request" },
+            subtitle = providerReference?.let { "M-Pesa code: $it · Ref: $reference" }
+                ?: "Ref: $reference",
+            type = type,
+            amount = amountDouble,
+            currency = currency,
+            isPositive = type == TransactionType.DEPOSIT,
+            timestamp = createdAt,
+            status = toWalletTransactionStatus()
+        )
+    }
+
+    private fun List<FinancialTransaction>.pendingDepositBalance(currency: Currency): Double =
+        filter {
+            it.type == com.example.novaplustrader.domain.model.ledger.FinancialTransactionType.DEPOSIT &&
+                it.currency == currency &&
+                (it.status == FinancialTransactionStatus.SUBMITTED ||
+                    it.status == FinancialTransactionStatus.PENDING ||
+                    it.status == FinancialTransactionStatus.PROCESSING)
+        }.sumOf { it.amountDouble }
+
+    private fun WalletUiState.pendingDepositBalance(currency: Currency): Double =
+        financialTransactions.pendingDepositBalance(currency)
 }

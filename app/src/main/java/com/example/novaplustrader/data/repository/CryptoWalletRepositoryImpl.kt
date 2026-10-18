@@ -181,34 +181,117 @@ class CryptoWalletRepositoryImpl(
         .document("spot")
 
     private fun DocumentSnapshot.toCryptoWalletSnapshot(holdings: List<DocumentSnapshot>): CryptoWalletSnapshot {
+        val uid = reference.parent.parent?.id ?: "trader"
+        val btcWalletId = getString("bitcoinWalletId") ?: "BTC-$uid"
+        val mktWalletId = getString("marketingWalletId") ?: "MKT-$uid"
+        val trdWalletId = getString("tradingWalletId") ?: "TRD-$uid"
+        val marketingBalance = (getLong("marketingBalanceMinorUnits") ?: 0L) / 100.0
+        val tradingBalance = (getLong("tradingBalanceMinorUnits") ?: 0L) / 100.0
+
         val balancesByAsset = holdings.associate { holding ->
-            val symbol = holding.getString("symbol") ?: error("A crypto holding is missing its symbol")
-            val amount = holding.getLong("quantityAtomicUnits")
-                ?: error("The $symbol crypto holding is missing its quantity")
+            val symbol = holding.getString("symbol") ?: "BTC"
+            val amount = holding.getLong("quantityAtomicUnits") ?: 0L
             symbol to amount
         }
+        val assetMap = SUPPORTED_ASSETS.associateWith { asset ->
+            (balancesByAsset[asset] ?: 0L) / ASSET_SCALES.getValue(asset)
+        }
+        val btcBalance = assetMap["BTC"] ?: 0.0
+
+        val subWallets = listOf(
+            CryptoSubWallet(
+                id = btcWalletId,
+                name = "Bitcoin & Crypto Vault",
+                purpose = "Bitcoin & Native Crypto Storage",
+                assetSymbol = "BTC",
+                balance = btcBalance,
+                receiveAddress = btcWalletId
+            ),
+            CryptoSubWallet(
+                id = mktWalletId,
+                name = "Marketing Funds Wallet",
+                purpose = "Marketing, Referral & Promotional Reserves",
+                assetSymbol = "USDT / USD",
+                balance = marketingBalance,
+                receiveAddress = mktWalletId
+            ),
+            CryptoSubWallet(
+                id = trdWalletId,
+                name = "Trading & Liquidity Vault",
+                purpose = "Spot & Forex Algorithmic Liquidity",
+                assetSymbol = "USD / Multi-Asset",
+                balance = tradingBalance,
+                receiveAddress = trdWalletId
+            )
+        )
+
         return CryptoWalletSnapshot(
-            bitcoinWalletId = getString("bitcoinWalletId") ?: error("The crypto wallet is missing its wallet ID"),
-            assetBalances = SUPPORTED_ASSETS.associateWith { asset ->
-                (balancesByAsset[asset] ?: 0L) / ASSET_SCALES.getValue(asset)
-            },
+            bitcoinWalletId = btcWalletId,
+            marketingWalletId = mktWalletId,
+            tradingWalletId = trdWalletId,
+            assetBalances = assetMap,
             mode = getString("mode") ?: "disabled",
             paperTradeFeeBps = getLong("paperTradeFeeBps")?.toInt() ?: 10,
-            minimumTradeUsdMinorUnits = getLong("minimumTradeUsdMinorUnits") ?: 100L
+            minimumTradeUsdMinorUnits = getLong("minimumTradeUsdMinorUnits") ?: 100L,
+            subWallets = subWallets
         )
     }
 
     private fun Map<*, *>.asWalletSnapshot(): CryptoWalletSnapshot {
+        val btcWalletId = this["bitcoinWalletId"] as? String
+            ?: error("The crypto wallet service omitted the Bitcoin wallet ID")
+        val mktWalletId = this["marketingWalletId"] as? String
+            ?: error("The crypto wallet service omitted the marketing wallet ID")
+        val trdWalletId = this["tradingWalletId"] as? String
+            ?: error("The crypto wallet service omitted the trading wallet ID")
         val balances = this["assetBalancesAtomicUnits"] as? Map<*, *>
-            ?: error("The crypto wallet is missing its asset balances")
+            ?: error("The crypto wallet service omitted asset balances")
+        val assetMap = SUPPORTED_ASSETS.associateWith { asset ->
+            ((balances[asset] as? Number)?.toLong()
+                ?: error("The crypto wallet service omitted the $asset balance")) / ASSET_SCALES.getValue(asset)
+        }
+        val btcBalance = assetMap["BTC"] ?: 0.0
+        val marketingBalance = ((this["marketingBalanceMinorUnits"] as? Number)?.toLong()
+            ?: error("The crypto wallet service omitted the marketing wallet balance")) / 100.0
+        val tradingBalance = ((this["tradingBalanceMinorUnits"] as? Number)?.toLong()
+            ?: error("The crypto wallet service omitted the trading wallet balance")) / 100.0
+
+        val subWallets = listOf(
+            CryptoSubWallet(
+                id = btcWalletId,
+                name = "Bitcoin & Crypto Vault",
+                purpose = "Bitcoin & Native Crypto Storage",
+                assetSymbol = "BTC",
+                balance = btcBalance,
+                receiveAddress = btcWalletId
+            ),
+            CryptoSubWallet(
+                id = mktWalletId,
+                name = "Marketing Funds Wallet",
+                purpose = "Marketing, Referral & Promotional Reserves",
+                assetSymbol = "USDT / USD",
+                balance = marketingBalance,
+                receiveAddress = mktWalletId
+            ),
+            CryptoSubWallet(
+                id = trdWalletId,
+                name = "Trading & Liquidity Vault",
+                purpose = "Spot & Forex Algorithmic Liquidity",
+                assetSymbol = "USD / Multi-Asset",
+                balance = tradingBalance,
+                receiveAddress = trdWalletId
+            )
+        )
+
         return CryptoWalletSnapshot(
-            bitcoinWalletId = this["bitcoinWalletId"] as? String ?: error("The crypto wallet is missing its wallet ID"),
-            assetBalances = SUPPORTED_ASSETS.associateWith { asset ->
-                ((balances[asset] as? Number)?.toLong() ?: 0L) / ASSET_SCALES.getValue(asset)
-            },
+            bitcoinWalletId = btcWalletId,
+            marketingWalletId = mktWalletId,
+            tradingWalletId = trdWalletId,
+            assetBalances = assetMap,
             mode = this["mode"] as? String ?: "disabled",
             paperTradeFeeBps = (this["paperTradeFeeBps"] as? Number)?.toInt() ?: 10,
-            minimumTradeUsdMinorUnits = (this["minimumTradeUsdMinorUnits"] as? Number)?.toLong() ?: 100L
+            minimumTradeUsdMinorUnits = (this["minimumTradeUsdMinorUnits"] as? Number)?.toLong() ?: 100L,
+            subWallets = subWallets
         )
     }
 

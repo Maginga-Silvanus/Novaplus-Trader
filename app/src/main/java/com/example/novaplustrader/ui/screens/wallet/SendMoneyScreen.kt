@@ -56,6 +56,7 @@ import com.example.novaplustrader.ui.components.PrimaryButton
 import com.example.novaplustrader.ui.components.QRActionCard
 import com.example.novaplustrader.ui.components.SuccessAnimation
 import com.example.novaplustrader.ui.model.Currency
+import com.example.novaplustrader.ui.model.TransactionStatus
 import com.example.novaplustrader.ui.theme.BackgroundDark
 import com.example.novaplustrader.ui.theme.ElectricLime
 import com.example.novaplustrader.ui.theme.FinancialGreen
@@ -246,13 +247,13 @@ fun SendMoneyScreen(
 
                     val hintText = when (uiState.sendLookupMethod) {
                         "EMAIL" -> "e.g. maria.wanjiku@novapay.io"
-                        "WALLET_CODE" -> "e.g. #NV-92842 or bc1q9x..."
+                        "WALLET_CODE" -> "e.g. NV-<wallet code>"
                         else -> "e.g. +254712345678"
                     }
 
                     val labelText = when (uiState.sendLookupMethod) {
                         "EMAIL" -> "RECIPIENT EMAIL ADDRESS"
-                        "WALLET_CODE" -> "RECIPIENT WALLET CODE OR BITCOIN ADDRESS"
+                        "WALLET_CODE" -> "RECIPIENT WALLET CODE"
                         else -> "RECIPIENT KYC PHONE NUMBER"
                     }
 
@@ -283,22 +284,36 @@ fun SendMoneyScreen(
                         singleLine = true
                     )
 
-                    if (uiState.recipientId.isNotBlank()) {
+                    if (uiState.recipientId.isNotBlank() &&
+                        (uiState.isCheckingRecipient || uiState.recipientVerificationStatus != null)
+                    ) {
+                        val verified = uiState.isRecipientVerifiedInDb
+                        val verificationColor = when {
+                            uiState.isCheckingRecipient -> TextMuted
+                            verified -> FinancialGreen
+                            else -> FinancialRed
+                        }
                         Spacer(modifier = Modifier.height(6.dp))
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(6.dp),
                             modifier = Modifier.padding(start = 4.dp)
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.CheckCircle,
-                                contentDescription = "Verified",
-                                tint = FinancialGreen,
-                                modifier = Modifier.size(16.dp)
-                            )
+                            if (verified) {
+                                Icon(
+                                    imageVector = Icons.Default.CheckCircle,
+                                    contentDescription = "Verified",
+                                    tint = verificationColor,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
                             Text(
-                                text = "Recipient Verified: ${uiState.recipientId}",
-                                color = FinancialGreen,
+                                text = when {
+                                    uiState.isCheckingRecipient -> "Checking recipient wallet…"
+                                    verified -> uiState.recipientVerificationStatus ?: "Recipient wallet verified"
+                                    else -> uiState.recipientVerificationStatus ?: "Recipient wallet not found"
+                                },
+                                color = verificationColor,
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.SemiBold
                             )
@@ -420,7 +435,7 @@ fun SendMoneyScreen(
             val sendAmt = uiState.sendAmountString.toDoubleOrNull() ?: 0.0
 
             ConfirmationSheet(
-                title = "Confirm Peer Transfer",
+                title = "Submit Peer Transfer",
                 details = listOf(
                     "Recipient" to uiState.recipientId,
                     "Target Wallet" to if (uiState.recipientWalletType == "USER_WALLET") "User Main Wallet" else "Crypto / BTC Wallet",
@@ -428,7 +443,7 @@ fun SendMoneyScreen(
                     "Transfer Fee" to "Free (0%)",
                     "Note" to if (uiState.sendNote.isBlank()) "None" else uiState.sendNote
                 ),
-                confirmButtonText = "Send Instantly",
+                confirmButtonText = "Submit Request",
                 isLoading = uiState.isLoading,
                 onConfirm = { viewModel.executeSendMoney() },
                 onDismiss = { viewModel.closeSendConfirmSheet() }
@@ -451,8 +466,16 @@ fun SendMoneyScreen(
             ) {
                 if (tx != null) {
                     SuccessAnimation(
-                        title = "Transfer Successful!",
-                        subtitle = "Sent ${Formatters.formatCurrency(tx.amount, tx.currency)} to ${uiState.recipientId}. Ref: ${tx.id}",
+                        title = if (tx.status == TransactionStatus.COMPLETED) {
+                            "Transfer Successful!"
+                        } else {
+                            "Transfer Request Submitted"
+                        },
+                        subtitle = if (tx.status == TransactionStatus.COMPLETED) {
+                            "Sent ${Formatters.formatCurrency(tx.amount, tx.currency)} to ${uiState.recipientId}. Ref: ${tx.id}"
+                        } else {
+                            "Request recorded as pending. No wallet was debited or credited. Ref: ${tx.id}"
+                        },
                         onDoneClick = { viewModel.clearCompletedTransaction() }
                     )
                 }

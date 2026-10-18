@@ -42,7 +42,7 @@ class FinancialBackendServiceImpl(
                 "currency" to request.currency.code,
                 "amountMinorUnits" to request.amountMinorUnits,
                 "method" to request.method.name
-            )
+            ) + mapOfNotNull("providerReference" to request.providerReference?.takeIf { it.isNotBlank() })
         )
 
     override suspend fun createWithdrawalRequest(request: WithdrawalRequest): Result<FinancialTransaction> =
@@ -217,6 +217,9 @@ class FinancialBackendServiceImpl(
     private fun currencyFromWalletId(walletId: String): Currency =
         if (walletId.endsWith("-kes", ignoreCase = true)) Currency.KES else Currency.USD
 
+    private fun mapOfNotNull(vararg entries: Pair<String, String?>): Map<String, String> =
+        entries.mapNotNull { (key, value) -> value?.let { key to it } }.toMap()
+
     private fun DocumentSnapshot.toWalletBalance(
         uid: String,
         currency: Currency,
@@ -237,6 +240,8 @@ class FinancialBackendServiceImpl(
             .getOrElse { FinancialTransactionType.TRADE }
         val state = when (getString("status")) {
             "COMPLETED_TEST", "FILLED_TEST", "COMPLETED" -> FinancialTransactionStatus.COMPLETED
+            "APPROVED" -> FinancialTransactionStatus.COMPLETED
+            "SUBMITTED" -> FinancialTransactionStatus.SUBMITTED
             "FAILED", "REJECTED" -> FinancialTransactionStatus.FAILED
             "CANCELLED" -> FinancialTransactionStatus.CANCELLED
             "REVERSED" -> FinancialTransactionStatus.REVERSED
@@ -261,6 +266,7 @@ class FinancialBackendServiceImpl(
             status = state,
             idempotencyKey = getString("idempotencyKey") ?: id,
             reference = getString("reference") ?: id,
+            providerReference = getString("providerReference"),
             description = getString("description").orEmpty(),
             createdAt = timestamp.toString(),
             updatedAt = getTimestamp("updatedAt")?.toDate()?.toString() ?: timestamp.toString()
@@ -284,9 +290,13 @@ class FinancialBackendServiceImpl(
             feeMinorUnits = (this["feeMinorUnits"] as? Number)?.toLong() ?: 0L,
             netAmountMinorUnits = (this["netAmountMinorUnits"] as? Number)?.toLong()
                 ?: (this["amountMinorUnits"] as? Number)?.toLong() ?: 0L,
-            status = FinancialTransactionStatus.PENDING,
+            status = when (this["status"] as? String) {
+                "SUBMITTED" -> FinancialTransactionStatus.SUBMITTED
+                else -> FinancialTransactionStatus.PENDING
+            },
             idempotencyKey = this["idempotencyKey"] as? String ?: "",
             reference = this["reference"] as? String ?: "",
+            providerReference = this["providerReference"] as? String,
             description = this["description"] as? String ?: "",
             createdAt = createdAt.toString(),
             updatedAt = createdAt.toString()

@@ -71,4 +71,26 @@ class AdminTransactionsViewModel(
     fun selectTransactionDetails(tx: AdminTransactionModel?) {
         _uiState.update { it.copy(selectedTransactionDetails = tx) }
     }
+
+    fun approveDeposit(tx: AdminTransactionModel) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true) }
+            repository.approveDeposit(
+                userId = tx.userId,
+                transactionId = tx.transactionId
+            ).onSuccess {
+                _uiState.update { current ->
+                    current.copy(
+                        isLoading = false,
+                        selectedTransactionDetails = null,
+                        transactions = current.transactions.map { item ->
+                            if (item.transactionId == tx.transactionId) item.copy(status = "APPROVED") else item
+                        }
+                    )
+                }
+            }.onFailure { err ->
+                _uiState.update { it.copy(isLoading = false, errorMessage = err.message) }
+            }
+        }
+    }
 }

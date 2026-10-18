@@ -4,6 +4,7 @@ import android.net.Uri
 import com.example.novaplustrader.data.remote.FinancialBackendService
 import com.example.novaplustrader.data.remote.FinancialBackendServiceImpl
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.functions.FirebaseFunctions
 import com.example.novaplustrader.domain.model.ledger.DepositRequest
 import com.example.novaplustrader.domain.model.ledger.FeeModel
 import com.example.novaplustrader.domain.model.ledger.FinancialTransaction
@@ -23,11 +24,13 @@ import com.example.novaplustrader.ui.screens.wallet.models.WithdrawMethod
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.tasks.await
 import java.util.UUID
 
 class WalletRepositoryImpl(
     private val backendService: FinancialBackendService = FinancialBackendServiceImpl(),
-    private val auth: FirebaseAuth = FirebaseAuth.getInstance()
+    private val auth: FirebaseAuth = FirebaseAuth.getInstance(),
+    private val functions: FirebaseFunctions = FirebaseFunctions.getInstance()
 ) : WalletRepository {
 
     override fun observeBalances(): Flow<Map<Currency, Double>> = flow {
@@ -82,10 +85,42 @@ class WalletRepositoryImpl(
         return backendService.calculateFee(type, amountMinorUnits, currency)
     }
 
+    override suspend fun lookupRecipient(
+        identifier: String,
+        lookupMethod: String,
+        walletType: String
+    ): Result<RecipientWalletLookup> = try {
+        if (auth.currentUser == null) error("Sign in before checking recipient details")
+        val method = if (lookupMethod == "QR_CODE") "WALLET_CODE" else lookupMethod
+        val response = functions.getHttpsCallable("lookupTransferRecipient").call(
+            mapOf(
+                "identifier" to identifier,
+                "method" to method,
+                "targetWallet" to walletType
+            )
+        ).await().data as? Map<*, *> ?: error("The recipient lookup service returned an invalid response")
+        val exists = response["exists"] as? Boolean
+            ?: error("The recipient lookup service omitted the verification result")
+        val walletAvailable = response["walletAvailable"] as? Boolean
+            ?: error("The recipient lookup service omitted wallet availability")
+        Result.success(
+            RecipientWalletLookup(
+                walletAvailable = exists && walletAvailable,
+                message = response["message"] as? String
+                    ?: error("The recipient lookup service omitted its message")
+            )
+        )
+    } catch (error: kotlinx.coroutines.CancellationException) {
+        throw error
+    } catch (error: Exception) {
+        Result.failure(error)
+    }
+
     override suspend fun initiateDeposit(
         method: DepositMethod,
         amount: Double,
-        currency: Currency
+        currency: Currency,
+        providerReference: String?
     ): Result<TransactionUiModel> {
         val userId = auth.currentUser?.uid
             ?: return Result.failure(IllegalStateException("Sign in before requesting a deposit"))
@@ -96,7 +131,8 @@ class WalletRepositoryImpl(
             walletId = walletId,
             method = method,
             amountMinorUnits = Math.round(amount * 100.0),
-            currency = currency
+            currency = currency,
+            providerReference = providerReference
         )
 
         val result = backendService.createDepositRequest(req)
@@ -181,6 +217,7 @@ class WalletRepositoryImpl(
 
         val uiStatus = when (tx.status) {
             FinancialTransactionStatus.COMPLETED -> TransactionStatus.COMPLETED
+            FinancialTransactionStatus.SUBMITTED -> TransactionStatus.SUBMITTED
             FinancialTransactionStatus.FAILED, FinancialTransactionStatus.CANCELLED, FinancialTransactionStatus.REVERSED -> TransactionStatus.FAILED
             else -> TransactionStatus.PENDING
         }

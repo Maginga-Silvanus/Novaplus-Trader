@@ -23,6 +23,7 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
+import com.google.firebase.functions.FirebaseFunctions
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -36,7 +37,8 @@ import java.util.Date
 
 class AdminRepositoryImpl(
     private val auth: FirebaseAuth = FirebaseAuth.getInstance(),
-    private val firestore: FirebaseFirestore = FirebaseFirestore.getInstance()
+    private val firestore: FirebaseFirestore = FirebaseFirestore.getInstance(),
+    private val functions: FirebaseFunctions = FirebaseFunctions.getInstance()
 ) : AdminRepository {
 
     private val _accessState = MutableStateFlow(AdminAccessState.LOADING)
@@ -217,6 +219,19 @@ class AdminRepositoryImpl(
         }
     }
 
+    override suspend fun approveDeposit(
+        userId: String,
+        transactionId: String
+    ): Result<Boolean> = try {
+        val response = functions.getHttpsCallable("approvePaybillDeposit")
+            .call(mapOf("userId" to userId, "transactionId" to transactionId))
+            .await().data as? Map<*, *> ?: error("The approval service returned an invalid response")
+        if (response["status"] != "APPROVED") error("The deposit was not approved")
+        Result.success(true)
+    } catch (e: Exception) {
+        Result.failure(e)
+    }
+
     override fun getTrades(
         searchQuery: String,
         statusFilter: String?,
@@ -391,7 +406,8 @@ class AdminRepositoryImpl(
             status = getString("status") ?: "UNKNOWN",
             amount = amountMinorUnits / 100.0,
             currency = getString("currency") ?: "USD",
-            timestamp = getTimestamp("createdAt")?.toDate()?.toString().orEmpty()
+            timestamp = getTimestamp("createdAt")?.toDate()?.toString().orEmpty(),
+            providerReference = getString("providerReference")
         )
     }
 

@@ -75,6 +75,7 @@ enum class FinancialTransactionType {
 
 enum class FinancialTransactionStatus {
     CREATED,
+    SUBMITTED,
     PENDING,
     PROCESSING,
     COMPLETED,

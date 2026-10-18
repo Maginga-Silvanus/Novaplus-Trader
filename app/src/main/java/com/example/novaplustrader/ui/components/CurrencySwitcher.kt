@@ -1,5 +1,6 @@
 package com.example.novaplustrader.ui.components
 
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import com.example.novaplustrader.ui.model.Currency
@@ -16,6 +17,6 @@ fun CurrencySwitcher(
         selectedOption = selectedCurrency,
         optionLabel = { it.code },
         onOptionSelected = onCurrencySelected,
-        modifier = modifier
+        modifier = modifier.fillMaxWidth(0.5f)
     )
 }
