@@ -12,11 +12,14 @@ import com.example.novaplustrader.ui.screens.betting.models.DemoBet
 import com.example.novaplustrader.ui.screens.betting.models.Sport
 import com.example.novaplustrader.ui.screens.betting.models.SportEvent
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.SetOptions
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 
 class BettingViewModel(
     private val repository: BettingRepository = DemoBettingRepositoryImpl(),
@@ -162,6 +165,24 @@ class BettingViewModel(
         _uiState.update { it.copy(isConfirmSheetOpen = false, isLoading = true) }
 
         viewModelScope.launch {
+            val uid = auth.currentUser?.uid
+            if (uid != null) {
+                try {
+                    val walletRef = FirebaseFirestore.getInstance().collection("users").document(uid).collection("wallets").document("main")
+                    FirebaseFirestore.getInstance().runTransaction { transaction ->
+                        val snapshot = transaction.get(walletRef)
+                        val currentUsdMinor = snapshot.getLong("usdBalanceMinorUnits") ?: 0L
+                        val stakeMinor = Math.round(stake * 100.0)
+                        val newUsdMinor = (currentUsdMinor - stakeMinor).coerceAtLeast(0L)
+                        transaction.set(
+                            walletRef,
+                            mapOf("usdBalanceMinorUnits" to newUsdMinor),
+                            SetOptions.merge()
+                        )
+                    }.await()
+                } catch (_: Exception) {}
+            }
+
             val result = repository.placeDemoBet(items, stake)
             _uiState.update { it.copy(isLoading = false) }
 

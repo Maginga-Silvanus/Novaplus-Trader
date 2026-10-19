@@ -23,14 +23,14 @@ class CryptoWalletViewModel(
     private val auth: FirebaseAuth = FirebaseAuth.getInstance()
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(CryptoWalletUiState(isLoading = true))
+    private val _uiState = MutableStateFlow(CryptoWalletUiState(isLoading = false))
     val uiState: StateFlow<CryptoWalletUiState> = _uiState.asStateFlow()
 
     init {
-        loadCryptoWallet()
+        loadCryptoWallet(silent = true)
     }
 
-    fun loadCryptoWallet() {
+    fun loadCryptoWallet(silent: Boolean = false) {
         viewModelScope.launch {
             val userId = auth.currentUser?.uid
             if (userId == null) {
@@ -38,6 +38,9 @@ class CryptoWalletViewModel(
                     it.copy(isLoading = false, errorMessage = "Sign in to access your crypto wallet")
                 }
                 return@launch
+            }
+            if (!silent) {
+                _uiState.update { it.copy(isLoading = true) }
             }
             cryptoRepository.ensureWallet(userId).onSuccess { snapshot ->
                 _uiState.update { it.copy(isLoading = false, snapshot = snapshot) }
@@ -57,6 +60,6 @@ class CryptoWalletViewModel(
     }
 
     fun refresh() {
-        loadCryptoWallet()
+        loadCryptoWallet(silent = false)
     }
 }

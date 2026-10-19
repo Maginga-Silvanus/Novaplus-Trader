@@ -100,14 +100,22 @@ class CasinoViewModel(
         }
 
         val runCount = _uiState.value.runCount
-        // Stake-based win/loss algorithm:
-        // If stake < $7.00: First run is a win; subsequent runs follow a 3-wins-out-of-5-runs pattern.
-        // If stake >= $7.00: First run is a loss; subsequent runs follow a 2-wins-out-of-5-runs pattern.
+        // Precise stake-based win/loss algorithm:
+        // If stake < $7.00: First run is a win; subsequent runs follow a 3-wins-out-of-5-runs pattern (randomly distributed).
+        // If stake >= $7.00: First run is a loss; subsequent runs follow a 2-wins-out-of-5-runs pattern (randomly distributed).
         val isWin = if (runCount == 0) {
             stake < 7.0
         } else {
-            val positionInCycle = (runCount - 1) % 5
-            if (stake < 7.0) positionInCycle < 3 else positionInCycle < 2
+            val blockIndex = (runCount - 1) / 5
+            val localIndex = (runCount - 1) % 5
+            val winsCount = if (stake < 7.0) 3 else 2
+            val outcomes = mutableListOf<Boolean>().apply {
+                repeat(winsCount) { add(true) }
+                repeat(5 - winsCount) { add(false) }
+            }
+            val seed = blockIndex * 31L + if (stake < 7.0) 7L else 13L
+            outcomes.shuffle(java.util.Random(seed))
+            outcomes[localIndex]
         }
 
         // Pick winning or losing segment index
@@ -119,10 +127,10 @@ class CasinoViewModel(
         }
 
         val segmentAngle = 360f / segments.size
-        // Stop squarely centered on random number segment rather than on dividing line:
-        // Center of segment i is i * segmentAngle + segmentAngle / 2f
+        // Ensure SpinWheel stops squarely in the center of the randomly picked number segment (not on dividing lines)
+        val segmentCenterAngle = targetIndex * segmentAngle + segmentAngle / 2f
         val currentAngle = _uiState.value.targetRotationAngle
-        val newTargetAngle = currentAngle + 1800f + (360f - (targetIndex * segmentAngle + segmentAngle / 2f))
+        val newTargetAngle = currentAngle + 1800f + (360f - segmentCenterAngle)
 
         _uiState.update {
             it.copy(

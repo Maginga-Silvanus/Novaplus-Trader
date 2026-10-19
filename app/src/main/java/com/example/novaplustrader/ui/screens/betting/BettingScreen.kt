@@ -37,6 +37,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.novaplustrader.ui.components.IconActionButton
 import com.example.novaplustrader.ui.components.AccessibleDropdownSelector
+import com.example.novaplustrader.ui.model.Currency
+import com.example.novaplustrader.ui.util.Formatters
 import com.example.novaplustrader.ui.screens.betting.components.FeaturedEventCard
 import com.example.novaplustrader.ui.theme.BackgroundDark
 import com.example.novaplustrader.ui.theme.ElectricLime
@@ -83,35 +85,16 @@ fun BettingScreen(
                 )
 
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Text(
-                            text = "Sports",
-                            color = TextPrimary,
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(6.dp))
-                                .background(ElectricLimeSurface)
-                                .padding(horizontal = 6.dp, vertical = 2.dp)
-                        ) {
-                            Text(
-                                text = "DEMO MODE",
-                                color = ElectricLime,
-                                fontSize = 9.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
                     Text(
-                        text = "${uiState.demoBettingBalance.toInt()} Demo Credits",
-                        color = ElectricLime,
-                        fontSize = 11.sp,
+                        text = "Sports",
+                        color = TextPrimary,
+                        fontSize = 18.sp,
                         fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "Wallet Balance: ${Formatters.formatCurrency(uiState.walletBalanceUsd, Currency.USD)}",
+                        color = TextMuted,
+                        fontSize = 11.sp
                     )
                 }
 
@@ -190,7 +173,7 @@ fun BettingScreen(
                                 .padding(14.dp)
                         ) {
                             Text(
-                                text = "DEMO SPORTSBOOK NOTICE",
+                                text = "SPORTSBOOK WAGERING NOTICE",
                                 color = ElectricLime,
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
@@ -198,7 +181,7 @@ fun BettingScreen(
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = "All sports events, odds, and bets are for demonstration purposes using non-monetary Demo Credits. No real money wagering occurs in this application.",
+                                text = "Live sports fixtures and results fetched from internet data sources. Wagering utilizes real user wallet balance.",
                                 color = TextMuted,
                                 fontSize = 11.sp,
                                 lineHeight = 16.sp

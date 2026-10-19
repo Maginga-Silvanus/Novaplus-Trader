@@ -112,19 +112,6 @@ fun CasinoScreen(
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Bold
                         )
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(6.dp))
-                                .background(ElectricLimeSurface)
-                                .padding(horizontal = 6.dp, vertical = 2.dp)
-                        ) {
-                            Text(
-                                text = "DEMO",
-                                color = ElectricLime,
-                                fontSize = 9.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
                     }
                     Text(
                         text = "Wallet Balance: ${Formatters.formatCurrency(uiState.walletBalanceUsd, Currency.USD)}",
