@@ -14,13 +14,10 @@ data class KycUiState(
     val riskStatus: RiskStatus = RiskStatus.UNKNOWN,
     val requirements: List<KycRequirement> = emptyList(),
 
-    // Document Upload Form
+    // KYC details form
     val fullNameInput: String = "",
     val dateOfBirthInput: String = "",
     val selectedDocumentType: DocumentType = DocumentType.NATIONAL_ID,
     val documentNumberInput: String = "",
-    val frontImageUri: String? = null,
-    val backImageUri: String? = null,
-    val selfieImageUri: String? = null,
     val isSubmissionSuccess: Boolean = false
 )

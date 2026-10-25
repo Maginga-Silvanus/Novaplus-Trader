@@ -5,6 +5,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -42,7 +43,6 @@ import com.example.novaplustrader.ui.components.ConfirmationSheet
 import com.example.novaplustrader.ui.components.PrimaryButton
 import com.example.novaplustrader.ui.components.SuccessAnimation
 import com.example.novaplustrader.ui.screens.trading.components.AssetSelectorSheet
-import com.example.novaplustrader.ui.screens.trading.components.BuySellSegmentedControl
 import com.example.novaplustrader.ui.screens.trading.components.EnhancedTradingChart
 import com.example.novaplustrader.ui.screens.trading.components.TimeframeSelector
 import com.example.novaplustrader.ui.screens.trading.components.TradingHeaderBar
@@ -225,13 +225,60 @@ fun TradingScreen(
                     )
                 }
 
-                // 3. BUY / SELL Direction Control
+                // 3. BUY / SELL Direction Action Buttons
                 item {
                     Spacer(modifier = Modifier.height(20.dp))
-                    BuySellSegmentedControl(
-                        selectedDirection = uiState.selectedDirection,
-                        onDirectionSelected = { viewModel.selectDirection(it) }
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        val isBuy = uiState.selectedDirection == TradeDirection.BUY
+                        val isSell = uiState.selectedDirection == TradeDirection.SELL
+
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(52.dp)
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(if (isBuy) FinancialGreen else SurfaceDarkCard)
+                                .border(
+                                    1.5.dp,
+                                    if (isBuy) FinancialGreen else SurfaceBorder,
+                                    RoundedCornerShape(14.dp)
+                                )
+                                .clickable { viewModel.selectDirection(TradeDirection.BUY) },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "BUY (CALL ▲)",
+                                color = if (isBuy) androidx.compose.ui.graphics.Color.Black else FinancialGreen,
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(52.dp)
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(if (isSell) FinancialRed else SurfaceDarkCard)
+                                .border(
+                                    1.5.dp,
+                                    if (isSell) FinancialRed else SurfaceBorder,
+                                    RoundedCornerShape(14.dp)
+                                )
+                                .clickable { viewModel.selectDirection(TradeDirection.SELL) },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "SELL (PUT ▼)",
+                                color = if (isSell) androidx.compose.ui.graphics.Color.White else FinancialRed,
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
                 }
 
                 // 4. Order Entry: Reduced input field height & Dropdown menu for percentage selection

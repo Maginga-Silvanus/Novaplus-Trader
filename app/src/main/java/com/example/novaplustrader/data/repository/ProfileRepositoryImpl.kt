@@ -98,7 +98,7 @@ class ProfileRepositoryImpl(
         phoneNumber = phoneNumber.orEmpty(),
         photoUrl = photoUrl?.toString(),
         accountId = "NV-$uid",
-        verificationStatus = if (isEmailVerified) "VERIFIED" else "PENDING",
+        verificationStatus = "PENDING",
         accountStatus = "ACTIVE",
         createdAt = metadata?.creationTimestamp?.let { formatDate(Date(it)) }.orEmpty()
     )
@@ -115,7 +115,7 @@ class ProfileRepositoryImpl(
         phoneNumber = getString("phoneNumber").orEmpty(),
         photoUrl = getString("photoUrl"),
         accountId = "NV-$uid",
-        verificationStatus = if (auth.currentUser?.isEmailVerified == true) "VERIFIED" else "PENDING",
+        verificationStatus = getString("verificationStatus") ?: "PENDING",
         accountStatus = "ACTIVE",
         createdAt = getTimestamp("createdAt")?.toDate()?.let(::formatDate).orEmpty(),
         updatedAt = getTimestamp("updatedAt")?.toDate()?.let(::formatDate).orEmpty()

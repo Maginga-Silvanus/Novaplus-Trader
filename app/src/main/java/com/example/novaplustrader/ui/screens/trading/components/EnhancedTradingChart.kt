@@ -47,8 +47,8 @@ fun EnhancedTradingChart(
     modifier: Modifier = Modifier
 ) {
     val orderedCandles = candles.sortedBy { it.openTimeMs }.takeLast(120)
-    var scale by remember { mutableStateOf(1.0f) }
-    var offsetX by remember { mutableStateOf(0f) }
+    var scale by remember { mutableStateOf(5.0f) }
+    var offsetX by remember { mutableStateOf<Float?>(null) }
 
     Box(
         modifier = modifier
@@ -57,19 +57,24 @@ fun EnhancedTradingChart(
             .clip(RoundedCornerShape(20.dp))
             .background(SurfaceDarkCard)
             .border(1.dp, SurfaceBorder, RoundedCornerShape(20.dp))
+            .padding(10.dp)
             .pointerInput(Unit) {
                 detectTransformGestures { _, pan, zoom, _ ->
                     if (zoom != 1f || abs(pan.x) >= abs(pan.y)) {
-                        val newScale = (scale * zoom).coerceIn(1.0f, 20.0f)
-                        scale = newScale
+                        val previousScale = scale
+                        val newScale = (previousScale * zoom).coerceIn(5.0f, 100.0f)
                         val axisWidth = 58.dp.toPx()
-                        val maxOffsetX = 0f
-                        val minOffsetX = -((size.width - axisWidth) * (scale - 1f)).coerceAtLeast(0f)
-                        offsetX = (offsetX + pan.x).coerceIn(minOffsetX, maxOffsetX)
+                        val plotWidth = (size.width - axisWidth - 4.dp.toPx()).coerceAtLeast(0f)
+                        val previousMinOffset = -(plotWidth * (previousScale - 1f))
+                        val currentOffset = offsetX ?: previousMinOffset
+                        val newMinOffset = -(plotWidth * (newScale - 1f))
+                        val stayedAtLatest = currentOffset <= previousMinOffset + 1.dp.toPx()
+                        scale = newScale
+                        offsetX = (if (stayedAtLatest) newMinOffset else currentOffset + pan.x)
+                            .coerceIn(newMinOffset, 0f)
                     }
                 }
             }
-            .padding(10.dp)
     ) {
         if (orderedCandles.isEmpty()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -80,8 +85,11 @@ fun EnhancedTradingChart(
 
         Canvas(Modifier.fillMaxSize()) {
             val axisWidth = 58.dp.toPx()
-            val chartLeft = 4.dp.toPx() + offsetX
-            val chartRight = (size.width - axisWidth) * scale + offsetX
+            val plotWidth = (size.width - axisWidth - 4.dp.toPx()).coerceAtLeast(0f)
+            val minOffsetX = -(plotWidth * (scale - 1f))
+            val chartOffsetX = (offsetX ?: minOffsetX).coerceIn(minOffsetX, 0f)
+            val chartLeft = 4.dp.toPx() + chartOffsetX
+            val chartRight = chartLeft + plotWidth * scale
             val chartTop = 10.dp.toPx()
             val chartBottom = size.height - 35.dp.toPx()
             val volumeTop = chartTop + (chartBottom - chartTop) * 0.78f
@@ -97,7 +105,7 @@ fun EnhancedTradingChart(
             val maxPrice = high + padding
             val priceRange = (maxPrice - minPrice).coerceAtLeast(1e-12)
             val maxVolume = orderedCandles.maxOfOrNull { it.baseVolume }?.coerceAtLeast(1e-12) ?: 1.0
-            val slotWidth = ((size.width - axisWidth - 4.dp.toPx()) / orderedCandles.size) * scale
+            val slotWidth = (plotWidth / orderedCandles.size) * scale
             val bodyWidth = (slotWidth * 0.62f).coerceAtLeast(1.dp.toPx()).coerceAtMost(24.dp.toPx())
 
             val labelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -249,7 +257,7 @@ fun EnhancedTradingChart(
                 fontSize = 10.sp
             )
             Text(
-                "$chartType · ZOOM 1.0x-20.0x · BOUNDED",
+                "$chartType · ZOOM 5.0x-100.0x · BOUNDED",
                 color = TextMuted,
                 fontSize = 8.sp
             )

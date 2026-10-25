@@ -33,20 +33,20 @@ class MainUserWalletRepositoryImpl(
                     snapshot == null -> close(IllegalStateException("Unable to read the user wallet"))
                     !snapshot.exists() -> {
                         val defaultData = mapOf(
-                            "usdBalanceMinorUnits" to 0L,
+                            "usdBalanceMinorUnits" to 500L,
                             "kesBalanceMinorUnits" to 0L,
                             "mode" to "live",
-                            "rewardClaimed" to false,
+                            "rewardClaimed" to true,
                             "createdAt" to FieldValue.serverTimestamp()
                         )
                         walletDocument(userId).set(defaultData, SetOptions.merge())
                         trySend(
                             MainUserWalletSnapshot(
-                                usdBalanceMinorUnits = 0L,
+                                usdBalanceMinorUnits = 500L,
                                 kesBalanceMinorUnits = 0L,
                                 mode = "live",
                                 initialized = true,
-                                rewardClaimed = false
+                                rewardClaimed = true
                             )
                         )
                     }

@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -32,6 +33,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
@@ -52,6 +54,7 @@ import androidx.compose.ui.unit.sp
 import com.example.novaplustrader.ui.components.ConfirmationSheet
 import com.example.novaplustrader.ui.components.CurrencySwitcher
 import com.example.novaplustrader.ui.components.IconActionButton
+import com.example.novaplustrader.ui.components.NumericKeypad
 import com.example.novaplustrader.ui.components.PrimaryButton
 import com.example.novaplustrader.ui.components.QRActionCard
 import com.example.novaplustrader.ui.components.SuccessAnimation
@@ -435,7 +438,7 @@ fun SendMoneyScreen(
             val sendAmt = uiState.sendAmountString.toDoubleOrNull() ?: 0.0
 
             ConfirmationSheet(
-                title = "Submit Peer Transfer",
+                title = "Approve Transfer Amount",
                 details = listOf(
                     "Recipient" to uiState.recipientId,
                     "Target Wallet" to if (uiState.recipientWalletType == "USER_WALLET") "User Main Wallet" else "Crypto / BTC Wallet",
@@ -443,11 +446,65 @@ fun SendMoneyScreen(
                     "Transfer Fee" to "Free (0%)",
                     "Note" to if (uiState.sendNote.isBlank()) "None" else uiState.sendNote
                 ),
-                confirmButtonText = "Submit Request",
+                confirmButtonText = "Approve Amount & Enter PIN",
                 isLoading = uiState.isLoading,
-                onConfirm = { viewModel.executeSendMoney() },
+                onConfirm = { viewModel.openSendPinVerification() },
                 onDismiss = { viewModel.closeSendConfirmSheet() }
             )
+        }
+
+        // Security PIN Verification Sheet
+        if (uiState.isPinVerificationOpen && uiState.pinActionType == "SEND") {
+            ModalBottomSheet(
+                onDismissRequest = { viewModel.closePinVerification() },
+                containerColor = BackgroundDark,
+                scrimColor = OverlayDark
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = "Security Authorization",
+                        color = TextPrimary,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Enter your 4-digit security PIN to confirm transfer",
+                        color = TextMuted,
+                        fontSize = 13.sp
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // PIN Dots
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        repeat(4) { index ->
+                            val isFilled = index < uiState.securityPin.length
+                            Box(
+                                modifier = Modifier
+                                    .size(16.dp)
+                                    .clip(CircleShape)
+                                    .background(if (isFilled) ElectricLime else SurfaceBorder)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    NumericKeypad(
+                        onKeyPress = { viewModel.onKeypadPress(it) },
+                        onBackspace = { viewModel.onKeypadBackspace() }
+                    )
+                }
+            }
         }
 
         // Success Dialog

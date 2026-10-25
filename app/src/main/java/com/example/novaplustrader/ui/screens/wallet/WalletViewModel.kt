@@ -558,8 +558,10 @@ class WalletViewModel(
             _uiState.update { it.copy(validationError = "Please enter a valid withdrawal amount") }
             return
         }
-        if (_uiState.value.selectedCurrency == Currency.USD && amount < 10.0) {
-            _uiState.update { it.copy(validationError = "The minimum USD withdrawal is $10.00") }
+        val minAmountUsdEquivalent = if (_uiState.value.selectedCurrency == Currency.USD) 10.0 else 1300.0
+        if (amount < minAmountUsdEquivalent) {
+            val minFormatted = if (_uiState.value.selectedCurrency == Currency.USD) "$10.00 USD" else "1,300 KES ($10 USD)"
+            _uiState.update { it.copy(validationError = "Minimum amount to withdraw is $minFormatted") }
             return
         }
         if (kotlin.math.abs(amount * 100.0 - kotlin.math.round(amount * 100.0)) > 1e-8) {
@@ -578,7 +580,11 @@ class WalletViewModel(
     }
 
     fun openPinVerification() {
-        _uiState.update { it.copy(isWithdrawConfirmOpen = false, isPinVerificationOpen = true, securityPin = "") }
+        _uiState.update { it.copy(isWithdrawConfirmOpen = false, isPinVerificationOpen = true, pinActionType = "WITHDRAW", securityPin = "") }
+    }
+
+    fun openSendPinVerification() {
+        _uiState.update { it.copy(isSendConfirmOpen = false, isPinVerificationOpen = true, pinActionType = "SEND", securityPin = "") }
     }
 
     fun closePinVerification() {
@@ -591,7 +597,11 @@ class WalletViewModel(
             val newPin = currentPin + key
             _uiState.update { it.copy(securityPin = newPin) }
             if (newPin.length == 4) {
-                executeTestWithdrawal()
+                if (_uiState.value.pinActionType == "SEND") {
+                    executeSendMoney()
+                } else {
+                    executeTestWithdrawal()
+                }
             }
         }
     }

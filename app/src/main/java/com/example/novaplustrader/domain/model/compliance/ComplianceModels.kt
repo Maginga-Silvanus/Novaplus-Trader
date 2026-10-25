@@ -41,9 +41,6 @@ data class KycVerificationRequest(
     val dateOfBirth: String,
     val documentType: DocumentType,
     val documentNumber: String,
-    val frontImageUri: String? = null,
-    val backImageUri: String? = null,
-    val selfieImageUri: String? = null,
     val submissionTimestamp: String = ""
 )
 

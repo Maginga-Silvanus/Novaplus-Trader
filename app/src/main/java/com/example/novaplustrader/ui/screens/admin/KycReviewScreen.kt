@@ -28,6 +28,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -38,18 +39,20 @@ import androidx.compose.ui.unit.sp
 import com.example.novaplustrader.data.repository.KycRepository
 import com.example.novaplustrader.data.repository.KycRepositoryImpl
 import com.example.novaplustrader.domain.model.compliance.KycReviewDecision
+import com.example.novaplustrader.domain.model.compliance.KycVerificationRequest
 import com.example.novaplustrader.ui.components.IconActionButton
 import com.example.novaplustrader.ui.components.PrimaryButton
 import com.example.novaplustrader.ui.components.SecondaryButton
 import com.example.novaplustrader.ui.components.SuccessAnimation
 import com.example.novaplustrader.ui.theme.BackgroundDark
 import com.example.novaplustrader.ui.theme.ElectricLime
+import com.example.novaplustrader.ui.theme.FinancialRed
 import com.example.novaplustrader.ui.theme.OverlayDark
 import com.example.novaplustrader.ui.theme.SurfaceBorder
 import com.example.novaplustrader.ui.theme.SurfaceDarkCard
-import com.example.novaplustrader.ui.theme.SurfaceDarkElevated
 import com.example.novaplustrader.ui.theme.TextMuted
 import com.example.novaplustrader.ui.theme.TextPrimary
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -64,6 +67,24 @@ fun KycReviewScreen(
     var rejectionReasonInput by remember { mutableStateOf("") }
     var isSubmitting by remember { mutableStateOf(false) }
     var successMessage by remember { mutableStateOf<String?>(null) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+    var submission by remember { mutableStateOf<KycVerificationRequest?>(null) }
+    var isLoadingSubmission by remember { mutableStateOf(true) }
+
+    LaunchedEffect(userId) {
+        try {
+            repository.observeKycSubmission(userId).collect { record ->
+                submission = record
+                isLoadingSubmission = false
+                errorMessage = null
+            }
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Exception) {
+            isLoadingSubmission = false
+            errorMessage = error.message ?: "Unable to load the KYC submission."
+        }
+    }
 
     Box(
         modifier = modifier
@@ -119,29 +140,16 @@ fun KycReviewScreen(
                         )
                         Spacer(modifier = Modifier.height(8.dp))
 
-                        DetailRow("Full Legal Name", "Leonard Lopez")
+                        DetailRow("Full Legal Name", submission?.fullName ?: "Not available")
                         DetailRow("User Account ID", userId)
-                        DetailRow("Date of Birth", "1994-08-14")
-                        DetailRow("Document Type", "National ID Card")
-                        DetailRow("Document Number", "ID-9920194")
-                    }
-                }
-
-                // Document Verification Attachments
-                item {
-                    Text(
-                        text = "DOCUMENT ATTACHMENTS",
-                        color = TextMuted,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 1.sp
-                    )
-                    Spacer(modifier = Modifier.height(6.dp))
-
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        AttachmentPlaceholderBox("Front Image of National ID Card (Attached)")
-                        AttachmentPlaceholderBox("Back Image of National ID Card (Attached)")
-                        AttachmentPlaceholderBox("Liveness Verification Selfie Photo (Verified)")
+                        DetailRow("Date of Birth", submission?.dateOfBirth ?: "Not available")
+                        DetailRow("Document Type", submission?.documentType?.displayName ?: "Not available")
+                        DetailRow("Document Number", submission?.documentNumber ?: "Not available")
+                        if (isLoadingSubmission) {
+                            Text("Loading KYC submission…", color = TextMuted, fontSize = 12.sp)
+                        } else if (submission == null && errorMessage == null) {
+                            Text("No KYC details have been submitted for this account.", color = TextMuted, fontSize = 12.sp)
+                        }
                     }
                 }
 
@@ -180,32 +188,76 @@ fun KycReviewScreen(
                 item {
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    PrimaryButton(
-                        text = "APPROVE VERIFICATION",
-                        onClick = {
-                            isSubmitting = true
-                            scope.launch {
-                                repository.reviewKycSubmission(userId, KycReviewDecision.APPROVE, null)
-                                isSubmitting = false
-                                successMessage = "KYC Verification Approved!"
-                            }
-                        },
-                        isLoading = isSubmitting
-                    )
+                    if (errorMessage != null) {
+                        Text(
+                            text = errorMessage.orEmpty(),
+                            color = FinancialRed,
+                            fontSize = 12.sp,
+                            modifier = Modifier.padding(bottom = 10.dp)
+                        )
+                    }
 
-                    Spacer(modifier = Modifier.height(10.dp))
+                    if (submission != null && !isLoadingSubmission) {
+                        PrimaryButton(
+                            text = "APPROVE VERIFICATION",
+                            enabled = !isSubmitting,
+                            onClick = {
+                                isSubmitting = true
+                                errorMessage = null
+                                scope.launch {
+                                    try {
+                                        repository.reviewKycSubmission(
+                                            userId,
+                                            KycReviewDecision.APPROVE,
+                                            null
+                                        ).onSuccess {
+                                            successMessage = "KYC Verification Approved!"
+                                        }.onFailure { error ->
+                                            errorMessage = error.message ?: "Unable to approve KYC."
+                                        }
+                                    } catch (error: CancellationException) {
+                                        throw error
+                                    } catch (error: Exception) {
+                                        errorMessage = error.message ?: "Unable to approve KYC."
+                                    } finally {
+                                        isSubmitting = false
+                                    }
+                                }
+                            },
+                            isLoading = isSubmitting
+                        )
 
-                    SecondaryButton(
-                        text = "REJECT VERIFICATION",
-                        onClick = {
-                            isSubmitting = true
-                            scope.launch {
-                                repository.reviewKycSubmission(userId, KycReviewDecision.REJECT, rejectionReasonInput.ifBlank { "Document unreadable" })
-                                isSubmitting = false
-                                successMessage = "KYC Verification Rejected"
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        SecondaryButton(
+                            text = "REJECT VERIFICATION",
+                            onClick = {
+                                if (!isSubmitting) {
+                                    isSubmitting = true
+                                    errorMessage = null
+                                    scope.launch {
+                                        try {
+                                            repository.reviewKycSubmission(
+                                                userId,
+                                                KycReviewDecision.REJECT,
+                                                rejectionReasonInput.ifBlank { "Document unreadable" }
+                                            ).onSuccess {
+                                                successMessage = "KYC Verification Rejected"
+                                            }.onFailure { error ->
+                                                errorMessage = error.message ?: "Unable to reject KYC."
+                                            }
+                                        } catch (error: CancellationException) {
+                                            throw error
+                                        } catch (error: Exception) {
+                                            errorMessage = error.message ?: "Unable to reject KYC."
+                                        } finally {
+                                            isSubmitting = false
+                                        }
+                                    }
+                                }
                             }
-                        }
-                    )
+                        )
+                    }
                 }
             }
         }
@@ -246,19 +298,5 @@ private fun DetailRow(label: String, value: String) {
     ) {
         Text(text = label, color = TextMuted, fontSize = 12.sp)
         Text(text = value, color = TextPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-    }
-}
-
-@Composable
-private fun AttachmentPlaceholderBox(title: String) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(SurfaceDarkElevated)
-            .border(1.dp, SurfaceBorder, RoundedCornerShape(12.dp))
-            .padding(14.dp)
-    ) {
-        Text(text = title, color = TextPrimary, fontSize = 12.sp, fontWeight = FontWeight.Medium)
     }
 }

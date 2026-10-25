@@ -5,7 +5,6 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,15 +16,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.CameraAlt
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.UploadFile
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
@@ -35,7 +29,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -46,7 +39,6 @@ import com.example.novaplustrader.ui.components.PrimaryButton
 import com.example.novaplustrader.ui.components.SuccessAnimation
 import com.example.novaplustrader.ui.theme.BackgroundDark
 import com.example.novaplustrader.ui.theme.ElectricLime
-import com.example.novaplustrader.ui.theme.FinancialGreen
 import com.example.novaplustrader.ui.theme.FinancialRed
 import com.example.novaplustrader.ui.theme.OverlayDark
 import com.example.novaplustrader.ui.theme.SurfaceBorder
@@ -84,7 +76,7 @@ fun KycDocumentUploadScreen(
                 )
 
                 Text(
-                    text = "Upload Identity Documents",
+                    text = "Enter Identity Details",
                     color = TextPrimary,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold
@@ -116,6 +108,36 @@ fun KycDocumentUploadScreen(
                         optionLabel = { it.displayName },
                         onOptionSelected = viewModel::selectDocumentType,
                         modifier = Modifier.fillMaxWidth()
+                    )
+                }
+
+                item {
+                    Spacer(modifier = Modifier.height(18.dp))
+                    Text(
+                        text = "DATE OF BIRTH",
+                        color = TextMuted,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.sp
+                    )
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    OutlinedTextField(
+                        value = uiState.dateOfBirthInput,
+                        onValueChange = viewModel::updateDateOfBirthInput,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                        placeholder = { Text("YYYY-MM-DD", color = TextMuted) },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedContainerColor = SurfaceDarkCard,
+                            unfocusedContainerColor = SurfaceDarkCard,
+                            focusedBorderColor = ElectricLime,
+                            unfocusedBorderColor = SurfaceBorder,
+                            focusedTextColor = TextPrimary,
+                            unfocusedTextColor = TextPrimary
+                        ),
+                        singleLine = true
                     )
                 }
 
@@ -189,11 +211,11 @@ fun KycDocumentUploadScreen(
                     }
                 }
 
-                // Document Upload Buttons
+                // Identity details status
                 item {
                     Spacer(modifier = Modifier.height(20.dp))
                     Text(
-                        text = "ATTACHMENT / CAPTURE",
+                        text = "REQUIRED DETAILS",
                         color = TextMuted,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
@@ -203,25 +225,20 @@ fun KycDocumentUploadScreen(
                     Spacer(modifier = Modifier.height(10.dp))
 
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        DocumentAttachmentRow(
-                            title = "Front Image of ${uiState.selectedDocumentType.displayName}",
-                            isAttached = uiState.frontImageUri != null,
-                            icon = Icons.Default.UploadFile,
-                            onClick = { viewModel.setFrontImageUri("uri_front_attached") }
+                        Text(
+                            text = "Your full legal name, date of birth, document type, and document number will be submitted for review.",
+                            color = TextMuted,
+                            fontSize = 12.sp,
+                            lineHeight = 18.sp
                         )
+                    }
 
-                        DocumentAttachmentRow(
-                            title = "Back Image (if applicable)",
-                            isAttached = uiState.backImageUri != null,
-                            icon = Icons.Default.UploadFile,
-                            onClick = { viewModel.setBackImageUri("uri_back_attached") }
-                        )
-
-                        DocumentAttachmentRow(
-                            title = "Liveness Verification Selfie Photo",
-                            isAttached = uiState.selfieImageUri != null,
-                            icon = Icons.Default.CameraAlt,
-                            onClick = { viewModel.setSelfieImageUri("uri_selfie_attached") }
+                    if (uiState.errorMessage != null) {
+                        Text(
+                            text = uiState.errorMessage.orEmpty(),
+                            color = FinancialRed,
+                            fontSize = 12.sp,
+                            modifier = Modifier.padding(top = 8.dp)
                         )
                     }
                 }
@@ -231,7 +248,7 @@ fun KycDocumentUploadScreen(
                     Spacer(modifier = Modifier.height(28.dp))
 
                     PrimaryButton(
-                        text = "SUBMIT FOR VERIFICATION",
+                        text = "SUBMIT KYC DETAILS",
                         onClick = { viewModel.submitKyc() },
                         isLoading = uiState.isSubmitting
                     )
@@ -253,7 +270,7 @@ fun KycDocumentUploadScreen(
                 contentAlignment = Alignment.Center
             ) {
                 SuccessAnimation(
-                    title = "Documents Submitted!",
+                    title = "KYC Details Submitted!",
                     subtitle = "Your identity verification request is being reviewed by our compliance department.",
                     onDoneClick = {
                         viewModel.clearMessages()
@@ -261,62 +278,6 @@ fun KycDocumentUploadScreen(
                     }
                 )
             }
-        }
-    }
-}
-
-@Composable
-private fun DocumentAttachmentRow(
-    title: String,
-    isAttached: Boolean,
-    icon: ImageVector,
-    onClick: () -> Unit
-) {
-    val borderColor = if (isAttached) FinancialGreen else SurfaceBorder
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(SurfaceDarkCard)
-            .border(1.dp, borderColor, RoundedCornerShape(16.dp))
-            .clickable { onClick() }
-            .padding(16.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            modifier = Modifier.weight(1f)
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = title,
-                tint = if (isAttached) FinancialGreen else ElectricLime
-            )
-
-            Text(
-                text = title,
-                color = TextPrimary,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Medium
-            )
-        }
-
-        if (isAttached) {
-            Icon(
-                imageVector = Icons.Default.CheckCircle,
-                contentDescription = "Attached",
-                tint = FinancialGreen
-            )
-        } else {
-            Text(
-                text = "ATTACH",
-                color = ElectricLime,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Bold
-            )
         }
     }
 }

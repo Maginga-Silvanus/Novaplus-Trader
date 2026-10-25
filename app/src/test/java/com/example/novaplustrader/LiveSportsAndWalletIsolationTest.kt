@@ -18,7 +18,7 @@ class LiveSportsAndWalletIsolationTest {
 
         assertNotNull(feed)
         assertTrue(feed.events.isNotEmpty())
-        assertEquals("Sportmonks Live API (Production Authorized)", feed.source)
+        assertEquals("ESPN Live Sports API (Internet Connected)", feed.source)
         assertEquals(EventStatus.LIVE, feed.events.first().status)
     }
 

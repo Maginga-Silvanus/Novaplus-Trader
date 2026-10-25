@@ -2,6 +2,7 @@ package com.example.novaplustrader.ui.screens.compliance
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.CancellationException
 import com.example.novaplustrader.data.repository.KycRepository
 import com.example.novaplustrader.data.repository.KycRepositoryImpl
 import com.example.novaplustrader.domain.model.compliance.DocumentType
@@ -10,6 +11,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.time.LocalDate
+import java.time.format.DateTimeParseException
 
 class KycViewModel(
     private val repository: KycRepository = KycRepositoryImpl()
@@ -25,18 +28,36 @@ class KycViewModel(
     private fun observeComplianceState() {
         viewModelScope.launch {
             launch {
-                repository.observeKycStatus().collect { status ->
-                    _uiState.update { it.copy(kycStatus = status) }
+                try {
+                    repository.observeKycStatus().collect { status ->
+                        _uiState.update { it.copy(kycStatus = status) }
+                    }
+                } catch (error: CancellationException) {
+                    throw error
+                } catch (error: Exception) {
+                    _uiState.update { it.copy(errorMessage = error.message ?: "Unable to load KYC status") }
                 }
             }
             launch {
-                repository.observeRiskStatus().collect { risk ->
-                    _uiState.update { it.copy(riskStatus = risk) }
+                try {
+                    repository.observeRiskStatus().collect { risk ->
+                        _uiState.update { it.copy(riskStatus = risk) }
+                    }
+                } catch (error: CancellationException) {
+                    throw error
+                } catch (error: Exception) {
+                    _uiState.update { it.copy(errorMessage = error.message ?: "Unable to load risk status") }
                 }
             }
             launch {
-                repository.observeRequirements().collect { reqs ->
-                    _uiState.update { it.copy(requirements = reqs) }
+                try {
+                    repository.observeRequirements().collect { reqs ->
+                        _uiState.update { it.copy(requirements = reqs) }
+                    }
+                } catch (error: CancellationException) {
+                    throw error
+                } catch (error: Exception) {
+                    _uiState.update { it.copy(errorMessage = error.message ?: "Unable to load KYC requirements") }
                 }
             }
         }
@@ -58,18 +79,6 @@ class KycViewModel(
         _uiState.update { it.copy(documentNumberInput = num, validationError = null) }
     }
 
-    fun setFrontImageUri(uri: String?) {
-        _uiState.update { it.copy(frontImageUri = uri) }
-    }
-
-    fun setBackImageUri(uri: String?) {
-        _uiState.update { it.copy(backImageUri = uri) }
-    }
-
-    fun setSelfieImageUri(uri: String?) {
-        _uiState.update { it.copy(selfieImageUri = uri) }
-    }
-
     fun submitKyc() {
         val name = _uiState.value.fullNameInput.trim()
         val dob = _uiState.value.dateOfBirthInput.trim()
@@ -83,22 +92,23 @@ class KycViewModel(
             _uiState.update { it.copy(validationError = "Date of birth is required") }
             return
         }
+        if (!isValidDateOfBirth(dob)) {
+            _uiState.update { it.copy(validationError = "Enter a valid date of birth in YYYY-MM-DD format") }
+            return
+        }
         if (docNum.isBlank()) {
             _uiState.update { it.copy(validationError = "Document number is required") }
             return
         }
 
-        _uiState.update { it.copy(isSubmitting = true, validationError = null) }
+        _uiState.update { it.copy(isSubmitting = true, validationError = null, errorMessage = null) }
 
         viewModelScope.launch {
             val result = repository.submitKycVerification(
                 fullName = name,
                 dateOfBirth = dob,
                 documentType = _uiState.value.selectedDocumentType,
-                documentNumber = docNum,
-                frontImageUri = _uiState.value.frontImageUri,
-                backImageUri = _uiState.value.backImageUri,
-                selfieImageUri = _uiState.value.selfieImageUri
+                documentNumber = docNum
             )
 
             _uiState.update { it.copy(isSubmitting = false) }
@@ -106,8 +116,20 @@ class KycViewModel(
             result.onSuccess { status ->
                 _uiState.update { it.copy(kycStatus = status, isSubmissionSuccess = true) }
             }.onFailure { err ->
-                _uiState.update { it.copy(errorMessage = err.message ?: "Failed to submit KYC verification") }
+                _uiState.update {
+                    it.copy(errorMessage = err.message ?: "Failed to submit KYC verification")
+                }
             }
+        }
+    }
+
+    private fun isValidDateOfBirth(value: String): Boolean {
+        if (!Regex("""\d{4}-\d{2}-\d{2}""").matches(value)) return false
+        return try {
+            val date = LocalDate.parse(value)
+            !date.isAfter(LocalDate.now())
+        } catch (_: DateTimeParseException) {
+            false
         }
     }
 

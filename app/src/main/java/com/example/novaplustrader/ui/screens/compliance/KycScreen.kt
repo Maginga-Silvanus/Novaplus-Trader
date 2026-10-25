@@ -18,6 +18,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -36,7 +37,6 @@ import com.example.novaplustrader.ui.components.IconActionButton
 import com.example.novaplustrader.ui.components.PrimaryButton
 import com.example.novaplustrader.ui.theme.BackgroundDark
 import com.example.novaplustrader.ui.theme.ElectricLime
-import com.example.novaplustrader.ui.theme.ElectricLimeSurface
 import com.example.novaplustrader.ui.theme.FinancialGreen
 import com.example.novaplustrader.ui.theme.FinancialRed
 import com.example.novaplustrader.ui.theme.SurfaceBorder
@@ -130,6 +130,14 @@ fun KycScreen(
                             color = TextMuted,
                             fontSize = 12.sp
                         )
+                        if (uiState.errorMessage != null) {
+                            Text(
+                                text = uiState.errorMessage.orEmpty(),
+                                color = FinancialRed,
+                                fontSize = 11.sp,
+                                modifier = Modifier.padding(top = 8.dp)
+                            )
+                        }
                     }
                 }
 
@@ -146,6 +154,11 @@ fun KycScreen(
                 }
 
                 items(uiState.requirements) { req ->
+                    val requirementStatus = when (uiState.kycStatus) {
+                        KycStatus.VERIFIED -> "VERIFIED"
+                        KycStatus.UNDER_REVIEW, KycStatus.SUBMITTED -> "SUBMITTED"
+                        else -> "REQUIRED"
+                    }
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -172,20 +185,31 @@ fun KycScreen(
                         }
 
                         Icon(
-                            imageVector = Icons.Default.CheckCircle,
-                            contentDescription = "Requirement Met",
-                            tint = FinancialGreen,
+                            imageVector = if (requirementStatus == "VERIFIED") {
+                                Icons.Default.CheckCircle
+                            } else {
+                                Icons.Default.RadioButtonUnchecked
+                            },
+                            contentDescription = "Requirement $requirementStatus",
+                            tint = if (requirementStatus == "VERIFIED") FinancialGreen else TextMuted,
                             modifier = Modifier.padding(start = 8.dp)
+                        )
+                        Text(
+                            text = requirementStatus,
+                            color = if (requirementStatus == "VERIFIED") FinancialGreen else TextMuted,
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(start = 5.dp)
                         )
                     }
                 }
 
-                // Upload Documents Button
+                // KYC details button
                 item {
                     Spacer(modifier = Modifier.height(16.dp))
 
                     PrimaryButton(
-                        text = if (uiState.kycStatus == KycStatus.VERIFIED) "UPDATE IDENTITY DOCUMENTS" else "UPLOAD KYC DOCUMENTS",
+                        text = if (uiState.kycStatus == KycStatus.VERIFIED) "UPDATE KYC DETAILS" else "ENTER KYC DETAILS",
                         onClick = onNavigateToUpload
                     )
                 }
@@ -210,7 +234,7 @@ fun KycScreen(
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "Identity documents are processed through encrypted backend connections strictly for Anti-Money Laundering (AML) and Know Your Customer (KYC) compliance. Documents are never stored in plaintext.",
+                            text = "Your identity details are stored in your account's KYC record for compliance review. Verification is complete only after an authorized review.",
                             color = TextMuted,
                             fontSize = 11.sp,
                             lineHeight = 16.sp

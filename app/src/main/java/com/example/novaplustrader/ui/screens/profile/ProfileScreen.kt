@@ -12,14 +12,15 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ShowChart
-import androidx.compose.material.icons.filled.AdminPanelSettings
 import androidx.compose.material.icons.filled.Android
 import androidx.compose.material.icons.filled.Badge
 import androidx.compose.material.icons.filled.Casino
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.PrivacyTip
@@ -60,7 +61,6 @@ fun ProfileScreen(
     onNavigateToPrivacy: () -> Unit,
     onLoggedOut: () -> Unit,
     modifier: Modifier = Modifier,
-    onNavigateToAdmin: () -> Unit = {},
     onNavigateToKyc: () -> Unit = {},
     onNavigateToResponsibleGaming: () -> Unit = {},
     onNavigateToTrade: () -> Unit = {},
@@ -116,12 +116,25 @@ fun ProfileScreen(
 
                         Spacer(modifier = Modifier.height(12.dp))
 
-                        Text(
-                            text = p?.fullName?.ifBlank { null } ?: "Nova Trader",
-                            color = TextPrimary,
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.Bold
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text(
+                                text = p?.fullName?.ifBlank { null } ?: "Nova Trader",
+                                color = TextPrimary,
+                                fontSize = 20.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            if (p?.verificationStatus.equals("VERIFIED", ignoreCase = true)) {
+                                androidx.compose.material3.Icon(
+                                    imageVector = Icons.Default.CheckCircle,
+                                    contentDescription = "Verified Account",
+                                    tint = com.example.novaplustrader.ui.theme.FinancialGreen,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
 
                         Text(
                             text = p?.email?.ifBlank { null } ?: "No signed-in email",
@@ -136,7 +149,7 @@ fun ProfileScreen(
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             StatusBadge(
-                                status = if (p?.verificationStatus == "VERIFIED") {
+                                status = if (p?.verificationStatus.equals("VERIFIED", ignoreCase = true)) {
                                     TransactionStatus.COMPLETED
                                 } else {
                                     TransactionStatus.PENDING
@@ -224,7 +237,7 @@ fun ProfileScreen(
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         ProfileMenuItem(
                             title = "Identity & KYC Verification",
-                            subtitle = "Government ID, liveness verification, and compliance status",
+                            subtitle = "Government ID details and compliance status",
                             icon = Icons.Default.Badge,
                             onClick = onNavigateToKyc
                         )
@@ -234,13 +247,6 @@ fun ProfileScreen(
                             subtitle = "Self-exclusion, session limits, and reality check timers",
                             icon = Icons.Default.Shield,
                             onClick = onNavigateToResponsibleGaming
-                        )
-
-                        ProfileMenuItem(
-                            title = "Admin & Operations Portal",
-                            subtitle = "Privileged control center for authorized operators",
-                            icon = Icons.Default.AdminPanelSettings,
-                            onClick = onNavigateToAdmin
                         )
 
                         ProfileMenuItem(

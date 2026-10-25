@@ -36,7 +36,7 @@ class ProfileViewModel(
                 email = email,
                 phoneNumber = user.phoneNumber.orEmpty(),
                 accountId = "NV-${user.uid}",
-                verificationStatus = if (user.isEmailVerified) "VERIFIED" else "PENDING"
+                verificationStatus = "PENDING"
             )
             _uiState.update {
                 it.copy(

@@ -12,7 +12,6 @@ import com.example.novaplustrader.ui.screens.notifications.models.NotificationCa
 import com.example.novaplustrader.ui.screens.notifications.models.NotificationModel
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.StateFlow
 
 class KycRepositoryImpl(
     private val service: KycComplianceService = KycComplianceServiceImpl(),
@@ -23,18 +22,16 @@ class KycRepositoryImpl(
     private val userId: String
         get() = auth.currentUser?.uid.orEmpty()
 
-    override fun observeKycStatus(): StateFlow<KycStatus> = service.observeKycStatus(userId)
-    override fun observeRiskStatus(): StateFlow<RiskStatus> = service.observeRiskStatus(userId)
+    override fun observeKycStatus(): Flow<KycStatus> = service.observeKycStatus(userId)
+    override fun observeRiskStatus(): Flow<RiskStatus> = service.observeRiskStatus(userId)
     override fun observeRequirements(): Flow<List<KycRequirement>> = service.observeRequirements(userId)
+    override fun observeKycSubmission(userId: String) = service.observeKycSubmission(userId)
 
     override suspend fun submitKycVerification(
         fullName: String,
         dateOfBirth: String,
         documentType: DocumentType,
-        documentNumber: String,
-        frontImageUri: String?,
-        backImageUri: String?,
-        selfieImageUri: String?
+        documentNumber: String
     ): Result<KycStatus> {
         val uid = auth.currentUser?.uid
             ?: return Result.failure(IllegalStateException("Sign in before submitting KYC documents."))
@@ -44,9 +41,6 @@ class KycRepositoryImpl(
             dateOfBirth = dateOfBirth,
             documentType = documentType,
             documentNumber = documentNumber,
-            frontImageUri = frontImageUri,
-            backImageUri = backImageUri,
-            selfieImageUri = selfieImageUri,
             submissionTimestamp = System.currentTimeMillis().toString()
         )
 

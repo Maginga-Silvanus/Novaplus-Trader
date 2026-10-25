@@ -76,6 +76,7 @@ data class WalletUiState(
     val selectedSavedCardIndex: Int = 0,
     val isAddNewCardForWithdrawal: Boolean = false,
     val securityPin: String = "",
+    val pinActionType: String = "WITHDRAW", // "WITHDRAW" or "SEND"
     val isWithdrawConfirmOpen: Boolean = false,
     val isPinVerificationOpen: Boolean = false,
 

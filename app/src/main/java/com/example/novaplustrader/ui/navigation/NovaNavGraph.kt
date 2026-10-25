@@ -219,7 +219,6 @@ fun NovaNavGraph(
                 onNavigateToSecurity = { navController.navigate(Screen.Security.route) },
                 onNavigateToSettings = { navController.navigate(Screen.Settings.route) },
                 onNavigateToPrivacy = { navController.navigate(Screen.PrivacySettings.route) },
-                onNavigateToAdmin = { navController.navigate(Screen.AdminPortal.route) },
                 onNavigateToKyc = { navController.navigate(Screen.Kyc.route) },
                 onNavigateToResponsibleGaming = { navController.navigate(Screen.ResponsibleGaming.route) },
                 onNavigateToTrade = { navController.navigate(Screen.Trade.route) },

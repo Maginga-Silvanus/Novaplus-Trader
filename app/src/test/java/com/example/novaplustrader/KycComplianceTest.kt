@@ -69,8 +69,11 @@ class KycComplianceTest {
     }
 
     @Test
-    fun unconfiguredVerificationDoesNotClaimSuccessOrVerifiedStatus() = runBlocking {
-        val service = KycComplianceServiceImpl()
+    fun kycVerificationDoesNotClaimSuccessWhenFirestoreIsUnavailable() = runBlocking {
+        val service = KycComplianceServiceImpl(
+            firestoreProvider = { throw IllegalStateException("Unit Test No DB") },
+            authProvider = { throw IllegalStateException("Unit Test No Auth") }
+        )
         val request = KycVerificationRequest(
             userId = "firebase-uid",
             fullName = "Test User",
@@ -80,14 +83,13 @@ class KycComplianceTest {
         )
 
         val submission = service.submitKycVerification(request)
-        val review = service.reviewKycSubmission(
-            userId = request.userId,
-            decision = KycReviewDecision.APPROVE,
-            rejectionReason = null
-        )
-
         assertTrue(submission.isFailure)
-        assertTrue(review.isFailure)
-        assertEquals(KycStatus.NOT_STARTED, service.observeKycStatus(request.userId).value)
+        assertTrue(
+            service.reviewKycSubmission(
+                userId = request.userId,
+                decision = KycReviewDecision.APPROVE,
+                rejectionReason = null
+            ).isFailure
+        )
     }
 }
