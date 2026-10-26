@@ -1,0 +1,66 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && (
+        request.auth.token.admin == true ||
+        request.auth.token.role in [
+          'SUPER_ADMIN', 'ADMIN', 'OPERATIONS',
+          'COMPLIANCE', 'SUPPORT', 'READ_ONLY'
+        ]
+      );
+    }
+
+    function isValidImage() {
+      return request.resource != null &&
+        request.resource.size < 10 * 1024 * 1024 &&
+        request.resource.contentType != null &&
+        request.resource.contentType.matches('image/.*');
+    }
+
+    function isValidDocument() {
+      return request.resource != null &&
+        request.resource.size < 15 * 1024 * 1024 &&
+        request.resource.contentType in [
+          "application/pdf",
+          "image/jpeg",
+          "image/png"
+        ];
+    }
+
+    // User Profile Photos
+    match /users/{userId}/profile/{fileName} {
+      allow read: if isAuthenticated();
+      allow create, update: if isOwner(userId) && isValidImage();
+      allow delete: if isOwner(userId) || isAdmin();
+    }
+
+    // KYC Verification Documents (Government ID, Selfie, Proof of Address)
+    match /users/{userId}/kyc/{fileName} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create, update: if isOwner(userId) && isValidDocument();
+      allow delete: if isAdmin();
+    }
+
+    // Support / Ticket Attachments
+    match /users/{userId}/supportTickets/{ticketId}/{fileName} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create, update: if isOwner(userId) && isValidDocument();
+      allow delete: if isOwner(userId) || isAdmin();
+    }
+
+    // Fallback: Deny unmatched paths
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
