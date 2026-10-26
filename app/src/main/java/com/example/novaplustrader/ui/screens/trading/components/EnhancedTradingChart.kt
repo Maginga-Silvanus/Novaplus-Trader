@@ -22,7 +22,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
@@ -47,7 +46,7 @@ fun EnhancedTradingChart(
     modifier: Modifier = Modifier
 ) {
     val orderedCandles = candles.sortedBy { it.openTimeMs }.takeLast(120)
-    var scale by remember { mutableStateOf(5.0f) }
+    var scale by remember { mutableStateOf(3.5f) }
     var offsetX by remember { mutableStateOf<Float?>(null) }
 
     Box(
@@ -61,17 +60,13 @@ fun EnhancedTradingChart(
             .pointerInput(Unit) {
                 detectTransformGestures { _, pan, zoom, _ ->
                     if (zoom != 1f || abs(pan.x) >= abs(pan.y)) {
-                        val previousScale = scale
-                        val newScale = (previousScale * zoom).coerceIn(5.0f, 100.0f)
+                        val newScale = (scale * zoom).coerceIn(1.0f, 20.0f)
+                        scale = newScale
                         val axisWidth = 58.dp.toPx()
                         val plotWidth = (size.width - axisWidth - 4.dp.toPx()).coerceAtLeast(0f)
-                        val previousMinOffset = -(plotWidth * (previousScale - 1f))
-                        val currentOffset = offsetX ?: previousMinOffset
-                        val newMinOffset = -(plotWidth * (newScale - 1f))
-                        val stayedAtLatest = currentOffset <= previousMinOffset + 1.dp.toPx()
-                        scale = newScale
-                        offsetX = (if (stayedAtLatest) newMinOffset else currentOffset + pan.x)
-                            .coerceIn(newMinOffset, 0f)
+                        val minOffsetX = -(plotWidth * (scale - 1f)).coerceAtLeast(0f)
+                        val currentOffset = offsetX ?: minOffsetX
+                        offsetX = (currentOffset + pan.x).coerceIn(minOffsetX, 0f)
                     }
                 }
             }
@@ -88,8 +83,9 @@ fun EnhancedTradingChart(
             val plotWidth = (size.width - axisWidth - 4.dp.toPx()).coerceAtLeast(0f)
             val minOffsetX = -(plotWidth * (scale - 1f))
             val chartOffsetX = (offsetX ?: minOffsetX).coerceIn(minOffsetX, 0f)
+
             val chartLeft = 4.dp.toPx() + chartOffsetX
-            val chartRight = chartLeft + plotWidth * scale
+            val chartRight = (size.width - axisWidth) * scale + chartOffsetX
             val chartTop = 10.dp.toPx()
             val chartBottom = size.height - 35.dp.toPx()
             val volumeTop = chartTop + (chartBottom - chartTop) * 0.78f
@@ -105,7 +101,7 @@ fun EnhancedTradingChart(
             val maxPrice = high + padding
             val priceRange = (maxPrice - minPrice).coerceAtLeast(1e-12)
             val maxVolume = orderedCandles.maxOfOrNull { it.baseVolume }?.coerceAtLeast(1e-12) ?: 1.0
-            val slotWidth = (plotWidth / orderedCandles.size) * scale
+            val slotWidth = ((size.width - axisWidth - 4.dp.toPx()) / orderedCandles.size) * scale
             val bodyWidth = (slotWidth * 0.62f).coerceAtLeast(1.dp.toPx()).coerceAtMost(24.dp.toPx())
 
             val labelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -115,6 +111,7 @@ fun EnhancedTradingChart(
             }
             val nativeCanvas = drawContext.canvas.nativeCanvas
 
+            // Matrix Grid lines
             for (line in 0..4) {
                 val ratio = line / 4f
                 val y = chartTop + candleAreaHeight * ratio
@@ -145,107 +142,40 @@ fun EnhancedTradingChart(
                 }
             }
 
-            fun priceY(price: Double): Float =
-                candleAreaBottom - ((price - minPrice) / priceRange).toFloat() * candleAreaHeight
+            orderedCandles.forEachIndexed { index, candle ->
+                val x = chartLeft + slotWidth * (index + 0.5f)
+                if (x in -50f..(size.width + 50f)) {
+                    fun priceY(price: Double): Float =
+                        candleAreaBottom - ((price - minPrice) / priceRange).toFloat() * candleAreaHeight
 
-            when (chartType.lowercase(Locale.US)) {
-                "line" -> {
-                    val path = Path()
-                    orderedCandles.forEachIndexed { index, candle ->
-                        val x = chartLeft + slotWidth * (index + 0.5f)
-                        val y = priceY(candle.closePrice)
-                        if (index == 0) path.moveTo(x, y) else path.lineTo(x, y)
-                    }
-                    drawPath(path = path, color = ElectricLime, style = Stroke(width = 2.dp.toPx()))
-                }
-                "area" -> {
-                    val path = Path()
-                    val fillPath = Path()
-                    var firstX = 0f
-                    var lastX = 0f
-                    orderedCandles.forEachIndexed { index, candle ->
-                        val x = chartLeft + slotWidth * (index + 0.5f)
-                        val y = priceY(candle.closePrice)
-                        if (index == 0) {
-                            firstX = x
-                            path.moveTo(x, y)
-                            fillPath.moveTo(x, candleAreaBottom)
-                            fillPath.lineTo(x, y)
-                        } else {
-                            lastX = x
-                            path.lineTo(x, y)
-                            fillPath.lineTo(x, y)
-                        }
-                    }
-                    if (orderedCandles.isNotEmpty()) {
-                        fillPath.lineTo(lastX, candleAreaBottom)
-                        fillPath.lineTo(firstX, candleAreaBottom)
-                        fillPath.close()
-                        drawPath(path = fillPath, color = ElectricLime.copy(alpha = 0.2f))
-                    }
-                    drawPath(path = path, color = ElectricLime, style = Stroke(width = 2.dp.toPx()))
-                }
-                "bar" -> {
-                    orderedCandles.forEachIndexed { index, candle ->
-                        val x = chartLeft + slotWidth * (index + 0.5f)
-                        if (x in -50f..(size.width + 50f)) {
-                            val rising = candle.closePrice >= candle.openPrice
-                            val color = if (rising) FinancialGreen else FinancialRed
-                            val highY = priceY(candle.highPrice)
-                            val lowY = priceY(candle.lowPrice)
-                            val openY = priceY(candle.openPrice)
-                            val closeY = priceY(candle.closePrice)
+                    val rising = candle.closePrice >= candle.openPrice
+                    val color = if (rising) FinancialGreen else FinancialRed
 
-                            // High-Low vertical bar
-                            drawLine(color = color, start = Offset(x, highY), end = Offset(x, lowY), strokeWidth = 1.5.dp.toPx())
-                            // Open tick (left)
-                            drawLine(color = color, start = Offset(x - 3.dp.toPx(), openY), end = Offset(x, openY), strokeWidth = 1.5.dp.toPx())
-                            // Close tick (right)
-                            drawLine(color = color, start = Offset(x, closeY), end = Offset(x + 3.dp.toPx(), closeY), strokeWidth = 1.5.dp.toPx())
+                    // Wick
+                    drawLine(
+                        color = color,
+                        start = Offset(x, priceY(candle.highPrice)),
+                        end = Offset(x, priceY(candle.lowPrice)),
+                        strokeWidth = 1.8.dp.toPx()
+                    )
 
-                            // Volume Bar
-                            val volumeHeight = ((candle.baseVolume / maxVolume).toFloat() * (chartBottom - volumeTop - 4.dp.toPx()))
-                                .coerceAtLeast(1.dp.toPx())
-                            drawRect(
-                                color = color.copy(alpha = 0.5f),
-                                topLeft = Offset(x - bodyWidth / 2f, chartBottom - volumeHeight),
-                                size = androidx.compose.ui.geometry.Size(bodyWidth, volumeHeight)
-                            )
-                        }
-                    }
-                }
-                else -> {
-                    // Candlestick
-                    orderedCandles.forEachIndexed { index, candle ->
-                        val x = chartLeft + slotWidth * (index + 0.5f)
-                        if (x in -50f..(size.width + 50f)) {
-                            val rising = candle.closePrice >= candle.openPrice
-                            val color = if (rising) FinancialGreen else FinancialRed
+                    // Candle Body
+                    val bodyTop = priceY(maxOf(candle.openPrice, candle.closePrice))
+                    val bodyBottom = priceY(minOf(candle.openPrice, candle.closePrice))
+                    drawRect(
+                        color = color,
+                        topLeft = Offset(x - bodyWidth / 2f, bodyTop),
+                        size = androidx.compose.ui.geometry.Size(bodyWidth, (bodyBottom - bodyTop).coerceAtLeast(2.dp.toPx()))
+                    )
 
-                            drawLine(
-                                color = color,
-                                start = Offset(x, priceY(candle.highPrice)),
-                                end = Offset(x, priceY(candle.lowPrice)),
-                                strokeWidth = 1.8.dp.toPx()
-                            )
-
-                            val bodyTop = priceY(maxOf(candle.openPrice, candle.closePrice))
-                            val bodyBottom = priceY(minOf(candle.openPrice, candle.closePrice))
-                            drawRect(
-                                color = color,
-                                topLeft = Offset(x - bodyWidth / 2f, bodyTop),
-                                size = androidx.compose.ui.geometry.Size(bodyWidth, (bodyBottom - bodyTop).coerceAtLeast(2.dp.toPx()))
-                            )
-
-                            val volumeHeight = ((candle.baseVolume / maxVolume).toFloat() * (chartBottom - volumeTop - 4.dp.toPx()))
-                                .coerceAtLeast(1.dp.toPx())
-                            drawRect(
-                                color = color.copy(alpha = if (candle.isFinal) 0.35f else 0.75f),
-                                topLeft = Offset(x - bodyWidth / 2f, chartBottom - volumeHeight),
-                                size = androidx.compose.ui.geometry.Size(bodyWidth, volumeHeight)
-                            )
-                        }
-                    }
+                    // Volume Bar
+                    val volumeHeight = ((candle.baseVolume / maxVolume).toFloat() * (chartBottom - volumeTop - 4.dp.toPx()))
+                        .coerceAtLeast(1.dp.toPx())
+                    drawRect(
+                        color = color.copy(alpha = if (candle.isFinal) 0.35f else 0.75f),
+                        topLeft = Offset(x - bodyWidth / 2f, chartBottom - volumeHeight),
+                        size = androidx.compose.ui.geometry.Size(bodyWidth, volumeHeight)
+                    )
                 }
             }
         }
@@ -257,7 +187,7 @@ fun EnhancedTradingChart(
                 fontSize = 10.sp
             )
             Text(
-                "$chartType · ZOOM 5.0x-100.0x · BOUNDED",
+                "$chartType · ZOOM 1x-20x · SCROLLABLE",
                 color = TextMuted,
                 fontSize = 8.sp
             )

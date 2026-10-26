@@ -15,7 +15,7 @@ class TwoWalletArchitectureTest {
         assertEquals(500L, mainWallet.usdBalanceMinorUnits)
         assertEquals(0L, mainWallet.kesBalanceMinorUnits)
         assertEquals(5.0, mainWallet.usdBalance, 0.0)
-        assertEquals(0.0, mainWallet.kesBalance, 0.0)
+        assertEquals(650.0, mainWallet.kesBalance, 0.0)
         assertEquals("testing", mainWallet.mode)
     }
 
@@ -29,7 +29,7 @@ class TwoWalletArchitectureTest {
 
         assertEquals(15_000.0, cryptoWallet.cryptoPortfolioValueUsd!!, 0.0)
         assertEquals(5.0, mainWallet.usdBalance, 0.0)
-        assertEquals(0.0, mainWallet.kesBalance, 0.0)
+        assertEquals(650.0, mainWallet.kesBalance, 0.0)
     }
 
     @Test

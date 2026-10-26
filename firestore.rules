@@ -378,7 +378,7 @@ service cloud.firestore {
           request.auth != null &&
           get(/databases/$(database)/documents/supportTickets/$(ticketId))
             .data.userId == request.auth.uid &&
-          request.resource.data.requestDataIsInternalNote == false // or keep as is
+          request.resource.data.isInternalNote == false
         ) || isAdmin();
 
         allow update, delete: if false;

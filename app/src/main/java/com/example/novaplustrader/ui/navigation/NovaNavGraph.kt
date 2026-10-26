@@ -69,6 +69,13 @@ import com.example.novaplustrader.ui.screens.wallet.TransactionHistoryScreen
 import com.example.novaplustrader.ui.screens.wallet.WalletScreen
 import com.example.novaplustrader.ui.screens.wallet.WalletViewModel
 import com.example.novaplustrader.ui.screens.wallet.WithdrawScreen
+import com.example.novaplustrader.ui.screens.compliance.KycScreen
+import com.example.novaplustrader.ui.screens.compliance.KycDocumentUploadScreen
+import com.example.novaplustrader.ui.screens.compliance.KycViewModel
+import com.example.novaplustrader.ui.screens.gaming.ResponsibleGamingScreen
+import com.example.novaplustrader.ui.screens.gaming.SelfExclusionScreen
+import com.example.novaplustrader.ui.screens.gaming.GamingActivityScreen
+import com.example.novaplustrader.ui.screens.gaming.ResponsibleGamingViewModel
 
 @Composable
 fun NovaNavGraph(
@@ -84,7 +91,9 @@ fun NovaNavGraph(
     notificationViewModel: NotificationViewModel = viewModel(),
     profileViewModel: ProfileViewModel = viewModel(),
     securityViewModel: SecurityViewModel = viewModel(),
-    supportViewModel: SupportViewModel = viewModel()
+    supportViewModel: SupportViewModel = viewModel(),
+    kycViewModel: KycViewModel = viewModel(),
+    responsibleGamingViewModel: ResponsibleGamingViewModel = viewModel()
 ) {
     NavHost(
         navController = navController,
@@ -536,6 +545,44 @@ fun NovaNavGraph(
         composable(Screen.TransactionDetails.route) {
             TransactionDetailsScreen(
                 viewModel = walletViewModel,
+                onBackClick = { navController.popBackStack() }
+            )
+        }
+
+        composable(Screen.Kyc.route) {
+            KycScreen(
+                viewModel = kycViewModel,
+                onBackClick = { navController.popBackStack() },
+                onNavigateToUpload = { navController.navigate(Screen.KycDocumentUpload.route) }
+            )
+        }
+
+        composable(Screen.KycDocumentUpload.route) {
+            KycDocumentUploadScreen(
+                viewModel = kycViewModel,
+                onBackClick = { navController.popBackStack() }
+            )
+        }
+
+        composable(Screen.ResponsibleGaming.route) {
+            ResponsibleGamingScreen(
+                viewModel = responsibleGamingViewModel,
+                onBackClick = { navController.popBackStack() },
+                onNavigateToSelfExclusion = { navController.navigate(Screen.SelfExclusion.route) },
+                onNavigateToActivity = { navController.navigate(Screen.GamingActivity.route) }
+            )
+        }
+
+        composable(Screen.SelfExclusion.route) {
+            SelfExclusionScreen(
+                viewModel = responsibleGamingViewModel,
+                onBackClick = { navController.popBackStack() }
+            )
+        }
+
+        composable(Screen.GamingActivity.route) {
+            GamingActivityScreen(
+                viewModel = responsibleGamingViewModel,
                 onBackClick = { navController.popBackStack() }
             )
         }

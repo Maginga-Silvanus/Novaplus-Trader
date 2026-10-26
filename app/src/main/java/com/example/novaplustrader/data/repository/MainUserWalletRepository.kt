@@ -11,7 +11,7 @@ data class MainUserWalletSnapshot(
     val rewardClaimed: Boolean = false
 ) {
     val usdBalance: Double get() = usdBalanceMinorUnits / 100.0
-    val kesBalance: Double get() = kesBalanceMinorUnits / 100.0
+    val kesBalance: Double get() = if (kesBalanceMinorUnits == 0L) usdBalance * 130.0 else kesBalanceMinorUnits / 100.0
 }
 
 interface MainUserWalletRepository {

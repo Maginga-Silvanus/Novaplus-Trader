@@ -149,13 +149,18 @@ class CasinoViewModel(
             val segment = segments[targetIndex]
             val winAmount = stake * segment.multiplier
             val netChange = winAmount - stake
+            val roundId = "cr_${System.currentTimeMillis()}"
 
             if (uid != null) {
                 try {
                     val walletRef = firestore.collection("users").document(uid).collection("wallets").document("main")
+                    val txRef = walletRef.collection("transactions").document(roundId)
+                    val userTxRef = firestore.collection("users").document(uid).collection("transactions").document(roundId)
+                    val notifRef = firestore.collection("users").document(uid).collection("notifications").document()
+
                     firestore.runTransaction { transaction ->
                         val snapshot = transaction.get(walletRef)
-                        val currentUsdMinor = snapshot.getLong("usdBalanceMinorUnits") ?: 0L
+                        val currentUsdMinor = snapshot.getLong("usdBalanceMinorUnits") ?: 500L
                         val netChangeMinor = Math.round(netChange * 100.0)
                         val newUsdMinor = (currentUsdMinor + netChangeMinor).coerceAtLeast(0L)
                         transaction.set(
@@ -163,13 +168,45 @@ class CasinoViewModel(
                             mapOf("usdBalanceMinorUnits" to newUsdMinor),
                             SetOptions.merge()
                         )
+
+                        val txData = mapOf(
+                            "transactionId" to roundId,
+                            "userId" to uid,
+                            "walletId" to "${uid}-usd",
+                            "type" to if (netChange >= 0) "CASINO_WIN" else "CASINO_LOSS",
+                            "currency" to "USD",
+                            "amountMinorUnits" to Math.abs(netChangeMinor),
+                            "feeMinorUnits" to 0L,
+                            "netAmountMinorUnits" to Math.abs(netChangeMinor),
+                            "status" to "COMPLETED",
+                            "idempotencyKey" to roundId,
+                            "reference" to roundId,
+                            "description" to "Casino spin result: stake $stake, multiplier ${segment.multiplier}x",
+                            "createdAt" to com.google.firebase.firestore.FieldValue.serverTimestamp(),
+                            "createdAtMs" to System.currentTimeMillis(),
+                            "testOnly" to true,
+                            "operation" to if (netChange >= 0) "CASINO_WIN" else "CASINO_LOSS"
+                        )
+                        transaction.set(txRef, txData)
+                        transaction.set(userTxRef, txData)
+
+                        val notifData = mapOf(
+                            "id" to notifRef.id,
+                            "userId" to uid,
+                            "title" to if (winAmount > 0) "Casino Win! 🎉" else "Casino Spin Completed",
+                            "body" to if (winAmount > 0) "You won $${String.format(Locale.US, "%.2f", winAmount)} USD on the casino wheel (${segment.multiplier}x multiplier)." else "Casino spin completed with stake $${String.format(Locale.US, "%.2f", stake)} USD.",
+                            "category" to "CASINO_DEMO",
+                            "timestamp" to "Just now",
+                            "isRead" to false
+                        )
+                        transaction.set(notifRef, notifData)
                     }.await()
                 } catch (_: Exception) { }
             }
 
             val newBal = (_uiState.value.walletBalanceUsd + netChange).coerceAtLeast(0.0)
             val round = CasinoRound(
-                id = "cr_${System.currentTimeMillis()}",
+                id = roundId,
                 timestamp = SimpleDateFormat("HH:mm:ss", Locale.US).format(Date()),
                 demoStakeCredits = stake,
                 multiplier = segment.multiplier,

@@ -168,10 +168,16 @@ class BettingViewModel(
             val uid = auth.currentUser?.uid
             if (uid != null) {
                 try {
-                    val walletRef = FirebaseFirestore.getInstance().collection("users").document(uid).collection("wallets").document("main")
-                    FirebaseFirestore.getInstance().runTransaction { transaction ->
+                    val db = FirebaseFirestore.getInstance()
+                    val walletRef = db.collection("users").document(uid).collection("wallets").document("main")
+                    val txId = "bet_${System.currentTimeMillis()}"
+                    val txRef = walletRef.collection("transactions").document(txId)
+                    val userTxRef = db.collection("users").document(uid).collection("transactions").document(txId)
+                    val notifRef = db.collection("users").document(uid).collection("notifications").document()
+
+                    db.runTransaction { transaction ->
                         val snapshot = transaction.get(walletRef)
-                        val currentUsdMinor = snapshot.getLong("usdBalanceMinorUnits") ?: 0L
+                        val currentUsdMinor = snapshot.getLong("usdBalanceMinorUnits") ?: 500L
                         val stakeMinor = Math.round(stake * 100.0)
                         val newUsdMinor = (currentUsdMinor - stakeMinor).coerceAtLeast(0L)
                         transaction.set(
@@ -179,6 +185,38 @@ class BettingViewModel(
                             mapOf("usdBalanceMinorUnits" to newUsdMinor),
                             SetOptions.merge()
                         )
+
+                        val txData = mapOf(
+                            "transactionId" to txId,
+                            "userId" to uid,
+                            "walletId" to "${uid}-usd",
+                            "type" to "BETTING_STAKE",
+                            "currency" to "USD",
+                            "amountMinorUnits" to stakeMinor,
+                            "feeMinorUnits" to 0L,
+                            "netAmountMinorUnits" to stakeMinor,
+                            "status" to "COMPLETED",
+                            "idempotencyKey" to txId,
+                            "reference" to txId,
+                            "description" to "Sports bet placed on ${items.firstOrNull()?.eventName ?: "Sports Event"}",
+                            "createdAt" to com.google.firebase.firestore.FieldValue.serverTimestamp(),
+                            "createdAtMs" to System.currentTimeMillis(),
+                            "testOnly" to true,
+                            "operation" to "BETTING_STAKE"
+                        )
+                        transaction.set(txRef, txData)
+                        transaction.set(userTxRef, txData)
+
+                        val notifData = mapOf(
+                            "id" to notifRef.id,
+                            "userId" to uid,
+                            "title" to "Sports Bet Placed ⚽",
+                            "body" to "Your bet of $${String.format(java.util.Locale.US, "%.2f", stake)} USD was placed successfully.",
+                            "category" to "BETTING",
+                            "timestamp" to "Just now",
+                            "isRead" to false
+                        )
+                        transaction.set(notifRef, notifData)
                     }.await()
                 } catch (_: Exception) {}
             }
