@@ -19,15 +19,36 @@ class CryptoWalletRepositoryImpl(
 
     override suspend fun ensureWallet(userId: String): Result<CryptoWalletSnapshot> = try {
         requireCurrentUser(userId)
-        val result = functions.getHttpsCallable("getOrCreateCryptoPortfolio").call().await().data as? Map<*, *>
-            ?: error("The wallet service returned an invalid response")
-        val portfolio = result["cryptoWallet"] as? Map<*, *>
-            ?: error("The wallet service omitted the portfolio")
-        Result.success(portfolio.asWalletSnapshot())
+        val docRef = walletDocument(userId)
+        val doc = docRef.get().await()
+        if (!doc.exists()) {
+            val defaultData = mapOf(
+                "bitcoinWalletId" to "crypto_$userId",
+                "marketingWalletId" to "mkt_$userId",
+                "tradingWalletId" to "trd_$userId",
+                "balance" to 0.0,
+                "marketingBalanceMinorUnits" to 0L,
+                "tradingBalanceMinorUnits" to 0L,
+                "mode" to "live",
+                "createdAt" to com.google.firebase.firestore.FieldValue.serverTimestamp()
+            )
+            docRef.set(defaultData, com.google.firebase.firestore.SetOptions.merge()).await()
+        }
+        val holdingsDoc = docRef.collection("holdings").get().await()
+        val latestDoc = docRef.get().await()
+        Result.success(latestDoc.toCryptoWalletSnapshot(holdingsDoc.documents))
     } catch (error: CancellationException) {
         throw error
-    } catch (error: Exception) {
-        Result.failure(error)
+    } catch (_: Exception) {
+        try {
+            val result = functions.getHttpsCallable("getOrCreateCryptoPortfolio").call().await().data as? Map<*, *>
+                ?: error("The wallet service returned an invalid response")
+            val portfolio = result["cryptoWallet"] as? Map<*, *>
+                ?: error("The wallet service omitted the portfolio")
+            Result.success(portfolio.asWalletSnapshot())
+        } catch (fnError: Exception) {
+            Result.failure(fnError)
+        }
     }
 
     override fun observeWallet(userId: String): Flow<CryptoWalletSnapshot> = callbackFlow {
@@ -44,6 +65,9 @@ class CryptoWalletRepositoryImpl(
             val holdings = holdingsSnapshot ?: return
             if (!portfolio.exists()) {
                 val defaultData = mapOf(
+                    "bitcoinWalletId" to "crypto_$userId",
+                    "marketingWalletId" to "mkt_$userId",
+                    "tradingWalletId" to "trd_$userId",
                     "balance" to 0.0,
                     "marketingBalanceMinorUnits" to 0L,
                     "tradingBalanceMinorUnits" to 0L,
@@ -205,28 +229,68 @@ class CryptoWalletRepositoryImpl(
             }
 
             val walletRef = walletDocument(uid)
+            val mainWalletRef = firestore.collection("users").document(uid).collection("wallets").document("main")
             val holdingRef = walletRef.collection("holdings").document(asset)
             val tradeReqRef = firestore.collection("users").document(uid).collection("tradeRequests").document(request.idempotencyKey)
             val notifRef = firestore.collection("users").document(uid).collection("notifications").document()
 
             firestore.runTransaction { transaction ->
                 val snapshot = transaction.get(walletRef)
-                val tradingBalanceMinor = snapshot.getLong("tradingBalanceMinorUnits") ?: 50000L
+                if (!snapshot.exists()) {
+                    val defaultData = mapOf(
+                        "bitcoinWalletId" to "crypto_$uid",
+                        "marketingWalletId" to "mkt_$uid",
+                        "tradingWalletId" to "trd_$uid",
+                        "balance" to 0.0,
+                        "marketingBalanceMinorUnits" to 0L,
+                        "tradingBalanceMinorUnits" to 0L,
+                        "mode" to "live",
+                        "createdAt" to com.google.firebase.firestore.FieldValue.serverTimestamp()
+                    )
+                    transaction.set(walletRef, defaultData, com.google.firebase.firestore.SetOptions.merge())
+                }
+                val mainSnapshot = transaction.get(mainWalletRef)
+                if (!mainSnapshot.exists()) {
+                    val defaultMainData = mapOf(
+                        "usdBalanceMinorUnits" to 0L,
+                        "kesBalanceMinorUnits" to 0L,
+                        "mode" to "live",
+                        "rewardClaimed" to false,
+                        "createdAt" to com.google.firebase.firestore.FieldValue.serverTimestamp()
+                    )
+                    transaction.set(mainWalletRef, defaultMainData, com.google.firebase.firestore.SetOptions.merge())
+                }
+                val tradingBalanceMinor = if (snapshot.exists()) (snapshot.getLong("tradingBalanceMinorUnits") ?: 0L) else 0L
+                val mainUsdMinor = if (mainSnapshot.exists()) (mainSnapshot.getLong("usdBalanceMinorUnits") ?: 0L) else 0L
 
                 val holdingSnap = transaction.get(holdingRef)
                 val currentHoldingAtomic = holdingSnap.getLong("quantityAtomicUnits") ?: 0L
 
                 if (isBuy) {
-                    if (tradingBalanceMinor < netMinor) {
-                        throw IllegalStateException("Insufficient trading balance (Available: $${tradingBalanceMinor / 100.0}, Required: $${netMinor / 100.0})")
+                    val availableUsd = if (tradingBalanceMinor > 0L) tradingBalanceMinor else mainUsdMinor
+                    if (availableUsd < netMinor && tradingBalanceMinor < netMinor && mainUsdMinor < netMinor) {
+                        throw IllegalStateException("Insufficient USD funds / trading balance (Available: $${availableUsd / 100.0}, Required: $${netMinor / 100.0})")
                     }
-                    transaction.set(walletRef, mapOf("tradingBalanceMinorUnits" to (tradingBalanceMinor - netMinor)), com.google.firebase.firestore.SetOptions.merge())
+                    val newTradingBalance = if (tradingBalanceMinor >= netMinor) tradingBalanceMinor - netMinor else tradingBalanceMinor
+                    val newMainUsdBalance = if (mainUsdMinor >= netMinor) mainUsdMinor - netMinor else mainUsdMinor
+
+                    transaction.set(walletRef, mapOf("tradingBalanceMinorUnits" to newTradingBalance), com.google.firebase.firestore.SetOptions.merge())
+                    if (mainSnapshot.exists()) {
+                        transaction.set(mainWalletRef, mapOf("usdBalanceMinorUnits" to newMainUsdBalance), com.google.firebase.firestore.SetOptions.merge())
+                    }
                     transaction.set(holdingRef, mapOf("symbol" to asset, "quantityAtomicUnits" to (currentHoldingAtomic + quantityAtomic)), com.google.firebase.firestore.SetOptions.merge())
                 } else {
+                    val newTradingBalance = tradingBalanceMinor + netMinor
+                    val newMainUsdBalance = mainUsdMinor + netMinor
+
                     if (currentHoldingAtomic < quantityAtomic) {
                         throw IllegalStateException("Insufficient $asset holding")
                     }
-                    transaction.set(walletRef, mapOf("tradingBalanceMinorUnits" to (tradingBalanceMinor + netMinor)), com.google.firebase.firestore.SetOptions.merge())
+
+                    transaction.set(walletRef, mapOf("tradingBalanceMinorUnits" to newTradingBalance), com.google.firebase.firestore.SetOptions.merge())
+                    if (mainSnapshot.exists()) {
+                        transaction.set(mainWalletRef, mapOf("usdBalanceMinorUnits" to newMainUsdBalance), com.google.firebase.firestore.SetOptions.merge())
+                    }
                     transaction.set(holdingRef, mapOf("symbol" to asset, "quantityAtomicUnits" to (currentHoldingAtomic - quantityAtomic)), com.google.firebase.firestore.SetOptions.merge())
                 }
 

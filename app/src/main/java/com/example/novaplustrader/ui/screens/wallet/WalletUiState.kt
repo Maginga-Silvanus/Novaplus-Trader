@@ -19,7 +19,7 @@ data class WalletUiState(
     val rewardClaimed: Boolean = false,
 
     // Granular Ledger Balances
-    val usdBalance: Double = 5.00,
+    val usdBalance: Double = 0.0,
     val usdPendingBalance: Double = 0.0,
     val usdLockedBalance: Double = 0.0,
 

@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -58,6 +59,7 @@ fun TransactionRow(
     Row(
         modifier = modifier
             .fillMaxWidth()
+            .wrapContentHeight()
             .clip(RoundedCornerShape(16.dp))
             .background(SurfaceDarkCard)
             .border(1.dp, SurfaceBorder, RoundedCornerShape(16.dp))

@@ -98,16 +98,41 @@ class HomeViewModel(
                         }
                         .collect { wallet ->
                             _uiState.update { current ->
-                                current.copy(
-                                    totalBalanceUsd = wallet.usdBalance,
-                                    totalBalanceKes = wallet.kesBalance,
-                                    rewardClaimed = wallet.rewardClaimed,
-                                    wallets = current.wallets.map { item ->
+                                val defaultWallets = if (current.wallets.isEmpty()) {
+                                    listOf(
+                                        WalletUiModel(
+                                            id = "${user.uid}-usd",
+                                            walletId = "NV-${user.uid}",
+                                            userName = current.userName,
+                                            currency = Currency.USD,
+                                            balanceAmount = wallet.usdBalance,
+                                            cardNumberPlaceholder = "USD · MAIN",
+                                            isPrimary = true
+                                        ),
+                                        WalletUiModel(
+                                            id = "${user.uid}-kes",
+                                            walletId = "NV-${user.uid}",
+                                            userName = current.userName,
+                                            currency = Currency.KES,
+                                            balanceAmount = wallet.kesBalance,
+                                            cardNumberPlaceholder = "KES · MAIN",
+                                            isPrimary = false
+                                        )
+                                    )
+                                } else {
+                                    current.wallets.map { item ->
                                         when (item.currency) {
                                             Currency.USD -> item.copy(balanceAmount = wallet.usdBalance)
                                             Currency.KES -> item.copy(balanceAmount = wallet.kesBalance)
                                         }
                                     }
+                                }
+
+                                current.copy(
+                                    totalBalanceUsd = wallet.usdBalance,
+                                    totalBalanceKes = wallet.kesBalance,
+                                    rewardClaimed = wallet.rewardClaimed,
+                                    wallets = defaultWallets
                                 )
                             }
                         }

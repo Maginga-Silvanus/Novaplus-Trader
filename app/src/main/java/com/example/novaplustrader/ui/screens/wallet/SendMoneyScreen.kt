@@ -523,11 +523,7 @@ fun SendMoneyScreen(
             ) {
                 if (tx != null) {
                     SuccessAnimation(
-                        title = if (tx.status == TransactionStatus.COMPLETED) {
-                            "Transfer Successful!"
-                        } else {
-                            "Transfer Request Submitted"
-                        },
+                        title = "Transaction completed successfully!",
                         subtitle = if (tx.status == TransactionStatus.COMPLETED) {
                             "Sent ${Formatters.formatCurrency(tx.amount, tx.currency)} to ${uiState.recipientId}. Ref: ${tx.id}"
                         } else {

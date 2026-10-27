@@ -33,28 +33,28 @@ class MainUserWalletRepositoryImpl(
                     snapshot == null -> close(IllegalStateException("Unable to read the user wallet"))
                     !snapshot.exists() -> {
                         val defaultData = mapOf(
-                            "usdBalanceMinorUnits" to 500L,
+                            "usdBalanceMinorUnits" to 0L,
                             "kesBalanceMinorUnits" to 0L,
                             "mode" to "live",
-                            "rewardClaimed" to true,
+                            "rewardClaimed" to false,
                             "createdAt" to FieldValue.serverTimestamp()
                         )
                         walletDocument(userId).set(defaultData, SetOptions.merge())
                         trySend(
                             MainUserWalletSnapshot(
-                                usdBalanceMinorUnits = 500L,
+                                usdBalanceMinorUnits = 0L,
                                 kesBalanceMinorUnits = 0L,
                                 mode = "live",
                                 initialized = true,
-                                rewardClaimed = true
+                                rewardClaimed = false
                             )
                         )
                     }
                     else -> {
-                        val usd = snapshot.getLong("usdBalanceMinorUnits")
-                        val kes = snapshot.getLong("kesBalanceMinorUnits")
+                        val usd = snapshot.getLong("usdBalanceMinorUnits") ?: 0L
+                        val kes = snapshot.getLong("kesBalanceMinorUnits") ?: 0L
                         val claimed = snapshot.getBoolean("rewardClaimed") ?: false
-                        if (usd == null || kes == null || usd < 0L || kes < 0L) {
+                        if (usd < 0L || kes < 0L) {
                             close(IllegalStateException("The user wallet contains invalid balances"))
                         } else {
                             trySend(

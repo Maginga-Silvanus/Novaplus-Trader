@@ -97,7 +97,7 @@ class FinancialBackendServiceImpl(
 
             firestore.runTransaction { transaction ->
                 val snapshot = transaction.get(walletRef)
-                val usdMinor = snapshot.getLong("usdBalanceMinorUnits") ?: 500L
+                val usdMinor = snapshot.getLong("usdBalanceMinorUnits") ?: 0L
                 val kesMinor = snapshot.getLong("kesBalanceMinorUnits") ?: 0L
 
                 val isKes = (currency == Currency.KES)
@@ -120,7 +120,7 @@ class FinancialBackendServiceImpl(
                         if (type == FinancialTransactionType.TRANSFER && !recipientId.isNullOrBlank()) {
                             val recipientWalletRef = firestore.collection("users").document(recipientId).collection("wallets").document("main")
                             val recipientSnapshot = transaction.get(recipientWalletRef)
-                            val recUsd = recipientSnapshot.getLong("usdBalanceMinorUnits") ?: 500L
+                            val recUsd = recipientSnapshot.getLong("usdBalanceMinorUnits") ?: 0L
                             val recKes = recipientSnapshot.getLong("kesBalanceMinorUnits") ?: 0L
                             val recCurrent = if (isKes) recKes else recUsd
                             val recNew = recCurrent + amountMinor

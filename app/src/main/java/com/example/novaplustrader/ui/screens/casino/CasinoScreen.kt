@@ -354,35 +354,6 @@ fun CasinoScreen(
                         onClick = onNavigateToHistory
                     )
                 }
-
-                // Responsible Gaming Notice Card
-                item {
-                    Spacer(modifier = Modifier.height(20.dp))
-
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(SurfaceDarkElevated)
-                            .border(1.dp, SurfaceBorder, RoundedCornerShape(16.dp))
-                            .padding(14.dp)
-                    ) {
-                        Text(
-                            text = "RESPONSIBLE GAMING NOTICE",
-                            color = ElectricLime,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 0.8.sp
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = "This feature operates with real wallet balance. Please gamble responsibly and set limits according to your financial plan.",
-                            color = TextMuted,
-                            fontSize = 11.sp,
-                            lineHeight = 16.sp
-                        )
-                    }
-                }
             }
         }
 

@@ -6,11 +6,15 @@ import com.example.novaplustrader.data.repository.BettingRepository
 import com.example.novaplustrader.data.repository.DemoBettingRepositoryImpl
 import com.example.novaplustrader.data.repository.MainUserWalletRepository
 import com.example.novaplustrader.data.repository.MainUserWalletRepositoryImpl
+import com.example.novaplustrader.data.repository.NotificationRepository
+import com.example.novaplustrader.data.repository.NotificationRepositoryImpl
 import com.example.novaplustrader.ui.screens.betting.models.BetSlipItem
 import com.example.novaplustrader.ui.screens.betting.models.BettingSelection
 import com.example.novaplustrader.ui.screens.betting.models.DemoBet
 import com.example.novaplustrader.ui.screens.betting.models.Sport
 import com.example.novaplustrader.ui.screens.betting.models.SportEvent
+import com.example.novaplustrader.ui.screens.notifications.models.NotificationCategory
+import com.example.novaplustrader.ui.screens.notifications.models.NotificationModel
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
@@ -20,10 +24,14 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 class BettingViewModel(
     private val repository: BettingRepository = DemoBettingRepositoryImpl(),
     private val walletRepository: MainUserWalletRepository = MainUserWalletRepositoryImpl(),
+    private val notificationRepository: NotificationRepository = NotificationRepositoryImpl(),
     private val auth: FirebaseAuth = FirebaseAuth.getInstance()
 ) : ViewModel() {
 
@@ -162,7 +170,7 @@ class BettingViewModel(
         val items = _uiState.value.betSlipItems
         val stake = _uiState.value.demoStakeString.toDoubleOrNull() ?: 0.0
 
-        _uiState.update { it.copy(isConfirmSheetOpen = false, isLoading = true) }
+        _uiState.update { it.copy(isConfirmSheetOpen = false, isLoading = true, validationError = null) }
 
         viewModelScope.launch {
             val uid = auth.currentUser?.uid
@@ -173,13 +181,15 @@ class BettingViewModel(
                     val txId = "bet_${System.currentTimeMillis()}"
                     val txRef = walletRef.collection("transactions").document(txId)
                     val userTxRef = db.collection("users").document(uid).collection("transactions").document(txId)
-                    val notifRef = db.collection("users").document(uid).collection("notifications").document()
 
                     db.runTransaction { transaction ->
                         val snapshot = transaction.get(walletRef)
-                        val currentUsdMinor = snapshot.getLong("usdBalanceMinorUnits") ?: 500L
+                        val currentUsdMinor = snapshot.getLong("usdBalanceMinorUnits") ?: 0L
                         val stakeMinor = Math.round(stake * 100.0)
-                        val newUsdMinor = (currentUsdMinor - stakeMinor).coerceAtLeast(0L)
+                        if (currentUsdMinor < stakeMinor) {
+                            throw IllegalStateException("Insufficient wallet balance")
+                        }
+                        val newUsdMinor = currentUsdMinor - stakeMinor
                         transaction.set(
                             walletRef,
                             mapOf("usdBalanceMinorUnits" to newUsdMinor),
@@ -206,19 +216,30 @@ class BettingViewModel(
                         )
                         transaction.set(txRef, txData)
                         transaction.set(userTxRef, txData)
-
-                        val notifData = mapOf(
-                            "id" to notifRef.id,
-                            "userId" to uid,
-                            "title" to "Sports Bet Placed ⚽",
-                            "body" to "Your bet of $${String.format(java.util.Locale.US, "%.2f", stake)} USD was placed successfully.",
-                            "category" to "BETTING",
-                            "timestamp" to "Just now",
-                            "isRead" to false
-                        )
-                        transaction.set(notifRef, notifData)
                     }.await()
-                } catch (_: Exception) {}
+
+                    // Guaranteed Notification Saving via notificationRepository.saveNotification(...)
+                    val notifId = "notif_bet_${System.currentTimeMillis()}"
+                    val notification = NotificationModel(
+                        id = notifId,
+                        userId = uid,
+                        title = "Sports Bet Placed ⚽",
+                        body = "Your bet of $${String.format(Locale.US, "%.2f", stake)} USD was placed successfully.",
+                        category = NotificationCategory.BETTING,
+                        timestamp = SimpleDateFormat("HH:mm", Locale.US).format(Date()),
+                        isRead = false
+                    )
+                    notificationRepository.saveNotification(notification)
+
+                } catch (e: Exception) {
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            validationError = e.message ?: "Failed to place bet"
+                        )
+                    }
+                    return@launch
+                }
             }
 
             val result = repository.placeDemoBet(items, stake)
@@ -232,7 +253,7 @@ class BettingViewModel(
                     )
                 }
             }.onFailure { err ->
-                _uiState.update { it.copy(errorMessage = err.message ?: "Failed to place bet") }
+                _uiState.update { it.copy(validationError = err.message ?: "Failed to place bet") }
             }
         }
     }
@@ -254,6 +275,15 @@ class BettingViewModel(
     }
 
     fun resetDemoBalance() {
-        repository.resetDemoBettingBalance()
+        val uid = auth.currentUser?.uid ?: return
+        viewModelScope.launch {
+            try {
+                val db = FirebaseFirestore.getInstance()
+                val walletRef = db.collection("users").document(uid).collection("wallets").document("main")
+                walletRef.set(mapOf("usdBalanceMinorUnits" to 100000L), SetOptions.merge()).await()
+            } catch (e: Exception) {
+                _uiState.update { it.copy(validationError = e.message ?: "Failed to reset demo balance") }
+            }
+        }
     }
 }

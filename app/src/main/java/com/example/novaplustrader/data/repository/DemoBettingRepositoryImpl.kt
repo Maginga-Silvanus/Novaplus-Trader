@@ -146,18 +146,10 @@ class DemoBettingRepositoryImpl : BettingRepository {
         items: List<BetSlipItem>,
         stake: Double
     ): Result<DemoBet> {
-        val currentBal = _demoBalance.value
-        if (stake > currentBal) {
-            return Result.failure(IllegalArgumentException("Insufficient Demo Credits for stake"))
-        }
-
         delay(700) // Simulate order placement network verification
 
         val combinedOdds = items.fold(1.0) { acc, item -> acc * item.selection.odds }
         val potentialReturn = stake * combinedOdds
-
-        // Deduct demo balance
-        _demoBalance.value = currentBal - stake
 
         val newBet = DemoBet(
             id = "db_${System.currentTimeMillis().toString().takeLast(6)}",
@@ -180,7 +172,7 @@ class DemoBettingRepositoryImpl : BettingRepository {
     }
 
     override fun resetDemoBettingBalance() {
-        _demoBalance.value = 1000.0
+        // Handled via MainUserWalletRepository reactively
     }
 
     private fun getFormattedTime(): String {

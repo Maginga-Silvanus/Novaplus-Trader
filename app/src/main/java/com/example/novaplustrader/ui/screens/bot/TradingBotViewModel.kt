@@ -2,6 +2,10 @@ package com.example.novaplustrader.ui.screens.bot
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.novaplustrader.data.repository.AuthRepository
+import com.example.novaplustrader.data.repository.AuthRepositoryImpl
+import com.example.novaplustrader.data.repository.MainUserWalletRepository
+import com.example.novaplustrader.data.repository.MainUserWalletRepositoryImpl
 import com.example.novaplustrader.data.repository.TradingBotRepository
 import com.example.novaplustrader.data.repository.TradingBotRepositoryImpl
 import com.example.novaplustrader.ui.screens.bot.models.BotConfiguration
@@ -16,7 +20,9 @@ import kotlinx.coroutines.launch
 import java.util.Locale
 
 class TradingBotViewModel(
-    private val repository: TradingBotRepository = TradingBotRepositoryImpl()
+    private val repository: TradingBotRepository = TradingBotRepositoryImpl(),
+    private val authRepository: AuthRepository = AuthRepositoryImpl(),
+    private val mainUserWalletRepository: MainUserWalletRepository = MainUserWalletRepositoryImpl()
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(TradingBotUiState())
@@ -24,6 +30,19 @@ class TradingBotViewModel(
 
     init {
         observeRepositoryData()
+        observeWalletBalance()
+    }
+
+    private fun observeWalletBalance() {
+        viewModelScope.launch {
+            authRepository.observeAuthState().collect { user ->
+                if (user != null) {
+                    mainUserWalletRepository.observeWallet(user.uid).collect { wallet ->
+                        _uiState.update { it.copy(availableBalance = wallet.usdBalance) }
+                    }
+                }
+            }
+        }
     }
 
     private fun observeRepositoryData() {

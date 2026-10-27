@@ -159,36 +159,6 @@ fun BettingScreen(
                         }
                     }
                 }
-
-                // Notice Banner
-                item {
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Box(modifier = Modifier.padding(horizontal = 16.dp)) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(16.dp))
-                                .background(SurfaceDarkElevated)
-                                .border(1.dp, SurfaceBorder, RoundedCornerShape(16.dp))
-                                .padding(14.dp)
-                        ) {
-                            Text(
-                                text = "SPORTSBOOK WAGERING NOTICE",
-                                color = ElectricLime,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = 0.8.sp
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = "Live sports fixtures and results fetched from internet data sources. Wagering utilizes real user wallet balance.",
-                                color = TextMuted,
-                                fontSize = 11.sp,
-                                lineHeight = 16.sp
-                            )
-                        }
-                    }
-                }
             }
         }
 

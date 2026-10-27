@@ -173,15 +173,21 @@ service cloud.firestore {
       }
     }
 
-    // Legacy user wallet sub-collections (read-only for users)
+    // User wallet sub-collections (writable by user for client-side fallback balance updates & rewards)
     match /users/{userId}/wallets/{walletId} {
-      allow get, list: if signedInAs(userId) || isAdmin();
-      allow create, update, delete: if false;
+      allow get, list, create, update: if signedInAs(userId) || isAdmin();
+      allow delete: if false;
 
       match /transactions/{transactionId} {
-        allow get, list: if signedInAs(userId) || isAdmin();
-        allow create, update, delete: if false;
+        allow get, list, create: if signedInAs(userId) || isAdmin();
+        allow update, delete: if false;
       }
+    }
+
+    // User top-level transactions (writable by user for casino/betting logs)
+    match /users/{userId}/transactions/{transactionId} {
+      allow get, list, create: if signedInAs(userId) || isAdmin();
+      allow update, delete: if false;
     }
 
     match /users/{userId}/cryptoWallets/spot {
@@ -367,6 +373,7 @@ service cloud.firestore {
       allow delete: if false;
 
       match /messages/{messageId} {
+        match /messages/{messageId} {
         allow get, list: if (
           request.auth != null &&
           get(/databases/$(database)/documents/supportTickets/$(ticketId))
@@ -375,7 +382,7 @@ service cloud.firestore {
         ) || isAdmin();
 
         allow create: if (
-          request.auth != null &&
+          request.auth.token != null &&
           get(/databases/$(database)/documents/supportTickets/$(ticketId))
             .data.userId == request.auth.uid &&
           request.resource.data.isInternalNote == false
@@ -383,6 +390,7 @@ service cloud.firestore {
 
         allow update, delete: if false;
       }
+    }
     }
 
     // =========================================================================

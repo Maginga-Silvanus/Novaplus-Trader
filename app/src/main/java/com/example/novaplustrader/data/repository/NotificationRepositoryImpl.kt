@@ -26,7 +26,6 @@ class NotificationRepositoryImpl(
             return@callbackFlow
         }
         val registration = userDocument(uid).collection("notifications")
-            .orderBy("createdAt", com.google.firebase.firestore.Query.Direction.DESCENDING)
             .limit(100)
             .addSnapshotListener { snapshot, error ->
                 when {

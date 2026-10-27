@@ -105,18 +105,7 @@ fun TradingScreen(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(bottom = 100.dp, start = 16.dp, end = 16.dp)
             ) {
-                item {
-                    Text(
-                        text = when (uiState.walletMode) {
-                            "paper" -> "PAPER TRADING · LIVE FUNDS & SECURE BACKEND"
-                            else -> "Secured backend trading connected."
-                        },
-                        color = ElectricLime,
-                        fontSize = 11.sp,
-                        modifier = Modifier.padding(top = 8.dp, bottom = 12.dp)
-                    )
-                }
-                // 1. Asset Price & 24h Stats Header (Bitcoin price with 2 decimal places)
+                // 1. Asset Price & 24h Stats Header
                 item {
                     Column(modifier = Modifier.fillMaxWidth()) {
                         Row(
@@ -216,12 +205,6 @@ fun TradingScreen(
                         candles = candles,
                         currentPrice = asset.currentPrice,
                         chartType = uiState.selectedChartType
-                    )
-                    Text(
-                        text = "Live exchange data · Chart type: ${uiState.selectedChartType}",
-                        color = TextMuted,
-                        fontSize = 11.sp,
-                        modifier = Modifier.padding(top = 8.dp, start = 4.dp)
                     )
                 }
 

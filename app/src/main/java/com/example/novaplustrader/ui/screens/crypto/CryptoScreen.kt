@@ -18,7 +18,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.CurrencyBitcoin
@@ -42,8 +41,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.novaplustrader.ui.screens.wallet.CryptoWalletViewModel
+import com.example.novaplustrader.data.repository.MainUserWalletRepositoryImpl
+import com.example.novaplustrader.data.repository.MainUserWalletSnapshot
 import com.example.novaplustrader.ui.components.AccessibleDropdownSelector
+import com.example.novaplustrader.ui.model.Currency
 import com.example.novaplustrader.ui.theme.BackgroundDark
 import com.example.novaplustrader.ui.theme.ElectricLime
 import com.example.novaplustrader.ui.theme.ElectricLimeSurface
@@ -53,6 +54,8 @@ import com.example.novaplustrader.ui.theme.SurfaceBorder
 import com.example.novaplustrader.ui.theme.SurfaceDarkCard
 import com.example.novaplustrader.ui.theme.TextMuted
 import com.example.novaplustrader.ui.theme.TextPrimary
+import com.example.novaplustrader.ui.util.Formatters
+import com.google.firebase.auth.FirebaseAuth
 import java.util.Locale
 
 data class CryptoTokenItem(
@@ -66,15 +69,18 @@ data class CryptoTokenItem(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CryptoScreen(
-    cryptoViewModel: CryptoWalletViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
     onNavigateToReceive: () -> Unit,
     onNavigateToSend: () -> Unit,
     onNavigateToTrade: () -> Unit,
     onNavigateToBuyCrypto: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val state by cryptoViewModel.uiState.collectAsState()
-    val snapshot = state.snapshot
+    val auth = remember { FirebaseAuth.getInstance() }
+    val userId = auth.currentUser?.uid.orEmpty()
+    val mainWalletRepo = remember { MainUserWalletRepositoryImpl() }
+    val walletSnapshot by mainWalletRepo.observeWallet(userId).collectAsState(
+        initial = MainUserWalletSnapshot()
+    )
 
     var searchQuery by remember { mutableStateOf("") }
     var selectedFilter by remember { mutableStateOf("Today") }
@@ -110,8 +116,8 @@ fun CryptoScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column {
-                Text("Crypto & Digital Assets", color = TextPrimary, fontSize = 22.sp, fontWeight = FontWeight.Bold)
-                Text("Dedicated Web3 & Bitcoin Wallet", color = TextMuted, fontSize = 12.sp)
+                Text("Crypto & Market Overview", color = TextPrimary, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                Text("Single Main Wallet Architecture", color = TextMuted, fontSize = 12.sp)
             }
             Box(
                 modifier = Modifier
@@ -128,7 +134,7 @@ fun CryptoScreen(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(bottom = 100.dp, start = 16.dp, end = 16.dp)
         ) {
-            // Crypto Wallet Card
+            // Main Wallet Balance Card
             item {
                 Column(
                     modifier = Modifier
@@ -144,13 +150,12 @@ fun CryptoScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(imageVector = Icons.Default.CurrencyBitcoin, contentDescription = "BTC", tint = ElectricLime, modifier = Modifier.size(24.dp))
+                            Icon(imageVector = Icons.Default.CurrencyBitcoin, contentDescription = "Wallet", tint = ElectricLime, modifier = Modifier.size(24.dp))
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("Crypto Vault", color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                            Text("Main Wallet Balance", color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold)
                         }
                         Text(
-                            snapshot?.bitcoinWalletId?.let { "Internal wallet ID: $it" }
-                                ?: if (state.isLoading) "Loading wallet…" else "Wallet unavailable",
+                            "Single User Wallet",
                             color = ElectricLime,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.SemiBold
@@ -158,18 +163,16 @@ fun CryptoScreen(
                     }
 
                     Spacer(modifier = Modifier.height(14.dp))
-                    Text("Total Vault Balance", color = TextMuted, fontSize = 12.sp)
+                    Text("Total Available Balance", color = TextMuted, fontSize = 12.sp)
                     Spacer(modifier = Modifier.height(2.dp))
-                    val totalBtc = snapshot?.assetBalances?.get("BTC")
                     Text(
-                        text = totalBtc?.let { String.format(Locale.US, "%.8f BTC", it) }
-                            ?: if (state.isLoading) "Loading holdings…" else "Holdings unavailable",
+                        text = Formatters.formatCurrency(walletSnapshot.usdBalance, Currency.USD),
                         color = TextPrimary,
                         fontSize = 22.sp,
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        "NovaPlus wallet identifier only; not an on-chain address.",
+                        "Unified balance used across Trading, Casino, Sports, Send & Receive.",
                         color = TextMuted,
                         fontSize = 11.sp
                     )

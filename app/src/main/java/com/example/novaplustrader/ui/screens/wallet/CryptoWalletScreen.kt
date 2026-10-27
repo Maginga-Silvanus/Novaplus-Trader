@@ -129,7 +129,7 @@ fun CryptoWalletScreen(
                             Spacer(modifier = Modifier.width(12.dp))
                             Column {
                                 Text("Crypto Portfolio", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                                Text("Paper-trading balances", color = TextMuted, fontSize = 12.sp)
+                                Text("Secure digital asset storage", color = TextMuted, fontSize = 12.sp)
                             }
                         }
 
@@ -201,16 +201,15 @@ fun CryptoWalletScreen(
                             ) {
                                 Column {
                                     Text(asset, color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                                    Text("Paper-trading asset balance", color = TextMuted, fontSize = 11.sp)
+                                    Text("Available asset balance", color = TextMuted, fontSize = 11.sp)
                                 }
                                 Column(horizontalAlignment = Alignment.End) {
                                     Text(String.format(Locale.US, "%.8f", amount), color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                                    Text("TEST ASSET", color = FinancialGreen, fontSize = 10.sp)
                                 }
                             }
                             Spacer(modifier = Modifier.height(10.dp))
                             SecondaryButton(
-                                text = "Exchange in Paper Trade Hub",
+                                text = "Trade in Spot Market",
                                 onClick = onNavigateToTrade
                             )
                         }
@@ -234,13 +233,13 @@ fun CryptoWalletScreen(
                     verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
                     Text(
-                        text = "Crypto deposits unavailable",
+                        text = "Crypto Deposits",
                         color = TextPrimary,
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        "External crypto deposits are not enabled. Your crypto balance is available for paper trading only.",
+                        "External deposits are currently disabled. Crypto balances can be managed directly via spot trading.",
                         color = TextMuted,
                         fontSize = 13.sp
                     )

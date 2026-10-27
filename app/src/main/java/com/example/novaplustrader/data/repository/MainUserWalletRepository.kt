@@ -4,7 +4,7 @@ import kotlinx.coroutines.flow.Flow
 import com.example.novaplustrader.ui.model.Currency
 
 data class MainUserWalletSnapshot(
-    val usdBalanceMinorUnits: Long = 500L,
+    val usdBalanceMinorUnits: Long = 0L,
     val kesBalanceMinorUnits: Long = 0L,
     val mode: String = "testing",
     val initialized: Boolean = false,
