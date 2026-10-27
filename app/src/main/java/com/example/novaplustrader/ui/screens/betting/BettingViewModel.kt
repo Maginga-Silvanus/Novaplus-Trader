@@ -32,6 +32,7 @@ class BettingViewModel(
     private val repository: BettingRepository = DemoBettingRepositoryImpl(),
     private val walletRepository: MainUserWalletRepository = MainUserWalletRepositoryImpl(),
     private val notificationRepository: NotificationRepository = NotificationRepositoryImpl(),
+    private val authRepository: com.example.novaplustrader.data.repository.AuthRepository = com.example.novaplustrader.data.repository.AuthRepositoryImpl(),
     private val auth: FirebaseAuth = FirebaseAuth.getInstance()
 ) : ViewModel() {
 
@@ -44,10 +45,13 @@ class BettingViewModel(
     }
 
     private fun observeWallet() {
-        val uid = auth.currentUser?.uid ?: return
         viewModelScope.launch {
-            walletRepository.observeWallet(uid).collect { snapshot ->
-                _uiState.update { it.copy(demoBettingBalance = snapshot.usdBalance, walletBalanceUsd = snapshot.usdBalance) }
+            authRepository.observeAuthState().collect { user ->
+                if (user != null) {
+                    walletRepository.observeWallet(user.uid).collect { snapshot ->
+                        _uiState.update { it.copy(demoBettingBalance = snapshot.usdBalance, walletBalanceUsd = snapshot.usdBalance) }
+                    }
+                }
             }
         }
     }

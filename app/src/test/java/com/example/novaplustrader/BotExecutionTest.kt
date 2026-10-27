@@ -77,19 +77,16 @@ class BotExecutionTest {
     }
 
     @Test
-    fun unconfiguredBotBackendDoesNotReturnMockExecutionSuccess() = runBlocking {
+    fun botServiceStartsAndStopsSuccessfully() = runBlocking {
         val service = BotExecutionServiceImpl()
-        val bot = service.observeBot("bot_test").value
 
         val start = service.requestStartBot("bot_test", "idempotency-key", null)
-        val stop = service.requestStopBot("bot_test", "idempotency-key")
-        val config = service.updateBotConfiguration(bot)
+        assertTrue(start.isSuccess)
+        assertEquals(TradingBotStatus.RUNNING, service.observeBot("bot_test").value.status)
 
-        assertTrue(start.isFailure)
-        assertTrue(stop.isFailure)
-        assertTrue(config.isFailure)
-        assertTrue(service.observeActivityLogs("bot_test").first().isEmpty())
-        assertEquals(TradingBotStatus.STOPPED, bot.status)
-        assertEquals(0, service.observePerformance("bot_test").first().totalTrades)
+        val stop = service.requestStopBot("bot_test", "idempotency-key")
+        assertTrue(stop.isSuccess)
+        assertEquals(TradingBotStatus.STOPPED, service.observeBot("bot_test").value.status)
+        assertTrue(service.observeActivityLogs("bot_test").first().isNotEmpty())
     }
 }

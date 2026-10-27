@@ -10,6 +10,7 @@ import com.example.novaplustrader.data.repository.TradingBotRepository
 import com.example.novaplustrader.data.repository.TradingBotRepositoryImpl
 import com.example.novaplustrader.ui.screens.bot.models.BotConfiguration
 import com.example.novaplustrader.ui.screens.bot.models.BotRiskLevel
+import com.example.novaplustrader.ui.screens.bot.models.BotStatus
 import com.example.novaplustrader.ui.screens.bot.models.BotStrategy
 import com.example.novaplustrader.ui.screens.trading.models.TradingAsset
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -174,9 +175,10 @@ class TradingBotViewModel(
         _uiState.update { it.copy(isStartConfirmSheetOpen = false, isLoading = true) }
         viewModelScope.launch {
             val result = repository.startBot(securityPinVerified = true)
-            _uiState.update { it.copy(isLoading = false) }
-            if (result.isFailure) {
-                _uiState.update { it.copy(errorMessage = result.exceptionOrNull()?.message ?: "Failed to start bot") }
+            if (result.isSuccess) {
+                _uiState.update { it.copy(isLoading = false, botStatus = BotStatus.ACTIVE, errorMessage = null) }
+            } else {
+                _uiState.update { it.copy(isLoading = false, errorMessage = result.exceptionOrNull()?.message ?: "Failed to start bot") }
             }
         }
     }
@@ -193,7 +195,7 @@ class TradingBotViewModel(
         _uiState.update { it.copy(isStopConfirmSheetOpen = false, isLoading = true) }
         viewModelScope.launch {
             repository.stopBot()
-            _uiState.update { it.copy(isLoading = false) }
+            _uiState.update { it.copy(isLoading = false, botStatus = BotStatus.OFF) }
         }
     }
 

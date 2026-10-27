@@ -28,6 +28,7 @@ import java.util.Locale
 class CasinoViewModel(
     private val walletRepository: MainUserWalletRepository = MainUserWalletRepositoryImpl(),
     private val notificationRepository: NotificationRepository = NotificationRepositoryImpl(),
+    private val authRepository: com.example.novaplustrader.data.repository.AuthRepository = com.example.novaplustrader.data.repository.AuthRepositoryImpl(),
     private val auth: FirebaseAuth = FirebaseAuth.getInstance(),
     private val firestore: FirebaseFirestore = FirebaseFirestore.getInstance()
 ) : ViewModel() {
@@ -40,10 +41,13 @@ class CasinoViewModel(
     }
 
     private fun observeWallet() {
-        val uid = auth.currentUser?.uid ?: return
         viewModelScope.launch {
-            walletRepository.observeWallet(uid).collect { snapshot ->
-                _uiState.update { it.copy(walletBalanceUsd = snapshot.usdBalance) }
+            authRepository.observeAuthState().collect { user ->
+                if (user != null) {
+                    walletRepository.observeWallet(user.uid).collect { snapshot ->
+                        _uiState.update { it.copy(walletBalanceUsd = snapshot.usdBalance) }
+                    }
+                }
             }
         }
     }

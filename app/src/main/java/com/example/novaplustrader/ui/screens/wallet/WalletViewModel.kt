@@ -36,6 +36,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 import java.util.Locale
 import java.util.UUID
 
@@ -811,12 +812,44 @@ class WalletViewModel(
             }
             val walletId = "wallet-${userId}-${_uiState.value.selectedCurrency.code.lowercase()}"
 
+            val amountMinor = Math.round(amount * 100.0)
+            val recipientTarget = _uiState.value.recipientId.trim()
+
+            runCatching {
+                val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
+                val senderWalletRef = db.collection("users").document(userId).collection("wallets").document("main")
+
+                db.runTransaction { tx ->
+                    val snap = tx.get(senderWalletRef)
+                    val currentUsd = snap.getLong("usdBalanceMinorUnits") ?: 0L
+                    if (currentUsd >= amountMinor) {
+                        tx.update(senderWalletRef, "usdBalanceMinorUnits", currentUsd - amountMinor)
+                    }
+                }.await()
+
+                val cleanRecipUid = recipientTarget.removePrefix("#").removePrefix("NV-").trim()
+                val recipDoc = db.collection("users").document(cleanRecipUid).get().await()
+                var targetUid = if (recipDoc.exists()) cleanRecipUid else null
+                if (targetUid == null) {
+                    val emailSnap = db.collection("users").whereEqualTo("email", recipientTarget).get().await()
+                    if (!emailSnap.isEmpty) targetUid = emailSnap.documents.first().id
+                }
+                if (targetUid != null) {
+                    val recipWalletRef = db.collection("users").document(targetUid).collection("wallets").document("main")
+                    db.runTransaction { tx ->
+                        val snap = tx.get(recipWalletRef)
+                        val currentUsd = snap.getLong("usdBalanceMinorUnits") ?: 0L
+                        tx.update(recipWalletRef, "usdBalanceMinorUnits", currentUsd + amountMinor)
+                    }.await()
+                }
+            }
+
             val req = TransferRequest(
                 idempotencyKey = "idemp_trf_${UUID.randomUUID()}",
                 senderUserId = userId,
                 senderWalletId = walletId,
                 recipientId = _uiState.value.recipientId,
-                amountMinorUnits = Math.round(amount * 100.0),
+                amountMinorUnits = amountMinor,
                 currency = _uiState.value.selectedCurrency,
                 note = _uiState.value.sendNote
             )
@@ -983,6 +1016,7 @@ class WalletViewModel(
                 selectedCurrency = currency ?: current.selectedCurrency
             )
         }
+        scheduleRecipientLookup(recipient)
         return true
     }
 

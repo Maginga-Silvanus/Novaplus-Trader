@@ -60,21 +60,21 @@ fun TransactionRow(
         modifier = modifier
             .fillMaxWidth()
             .wrapContentHeight()
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(12.dp))
             .background(SurfaceDarkCard)
-            .border(1.dp, SurfaceBorder, RoundedCornerShape(16.dp))
+            .border(1.dp, SurfaceBorder, RoundedCornerShape(12.dp))
             .clickable { onClick() }
-            .padding(14.dp),
+            .padding(horizontal = 12.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
         Row(
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
                 modifier = Modifier
-                    .size(44.dp)
+                    .size(36.dp)
                     .clip(CircleShape)
                     .background(ElectricLimeSurface),
                 contentAlignment = Alignment.Center
@@ -83,7 +83,7 @@ fun TransactionRow(
                     imageVector = icon,
                     contentDescription = transaction.title,
                     tint = ElectricLime,
-                    modifier = Modifier.size(20.dp)
+                    modifier = Modifier.size(18.dp)
                 )
             }
 

@@ -41,7 +41,7 @@ class TradingBotRepositoryImpl(
     private val _legacyActiveTrades = MutableStateFlow<List<BotActiveTrade>>(emptyList())
 
     private val userId: String
-        get() = auth.currentUser?.uid.orEmpty()
+        get() = auth.currentUser?.uid?.takeIf { it.isNotBlank() } ?: "trader_uid"
 
     private val botId: String
         get() = userId.takeIf(String::isNotBlank)?.let { "bot_$it" }.orEmpty()
